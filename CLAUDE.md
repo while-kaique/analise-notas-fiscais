@@ -19,8 +19,9 @@ prefira a fonte de dados mais estruturada disponível antes de cair no OCR:
 
 - **Linguagem:** TypeScript (Node.js LTS). `strict: true` no `tsconfig`. Sem `any` solto —
   use `unknown` + narrowing quando o tipo for incerto.
-- **Integração de planilha:** Google Sheets API (`googleapis`). Service Account é o caminho
-  padrão; a planilha-alvo precisa ser compartilhada com o e-mail da service account.
+- **Integração de planilha:** Google Sheets API (`googleapis`). **OAuth do usuário** é o
+  caminho escolhido (ver Decisões): o usuário faz login com Google e autoriza o app a
+  ler/escrever suas planilhas. Guarde refresh tokens com segurança e nunca os commite.
 - **OCR:** comece com Tesseract (`tesseract.js` ou binário via wrapper), com idioma `por`.
   Mantenha o OCR atrás de uma interface (`OcrProvider`) para trocar por Cloud Vision /
   Textract sem reescrever o pipeline.
@@ -83,6 +84,28 @@ A planilha é a interface principal com o usuário — trate-a como API pública
   `corrige parsing de CNPJ`. Pequenos e focados.
 - **Não commite na `main` direto** sem pedido explícito; trabalhe em branch
   (`feat/...`, `fix/...`) e abra PR.
+- **SEMPRE use git worktree para alterações de código.** Este repositório é tocado por
+  múltiplos chats do Claude em paralelo, cada um construindo uma feature diferente. Para
+  evitar que um chat sobrescreva o trabalho do outro, **toda mudança de código deve
+  acontecer em um worktree isolado** (uma pasta separada com sua própria branch), nunca no
+  diretório principal compartilhado.
+- **Todos os worktrees ficam DENTRO de uma única pasta-contêiner irmã do projeto:**
+  `../analise-notas-fiscais-worktrees/`. Assim o diretório pai não fica poluído com várias
+  pastas soltas — fica só `analise-notas-fiscais/` (principal) e
+  `analise-notas-fiscais-worktrees/` (com um subdiretório por feature). **Nunca** crie o
+  worktree dentro do próprio repositório (ele acabaria versionado) nem solto ao lado dele.
+- Fluxo (rodar pela ferramenta **Bash**/Git Bash):
+  - Garanta a pasta-contêiner uma vez: `mkdir -p ../analise-notas-fiscais-worktrees`.
+  - Crie o worktree a partir da `main` atualizada, com branch dedicada:
+    `git worktree add ../analise-notas-fiscais-worktrees/<feature> -b feat/<feature> main`
+  - Trabalhe, commite e abra o PR **de dentro** desse worktree.
+  - Ao terminar (PR mergeado), remova:
+    `git worktree remove ../analise-notas-fiscais-worktrees/<feature>` e
+    `git branch -d feat/<feature>`. Use `git worktree prune` se sobrar referência.
+  - Liste o que está ativo com `git worktree list`.
+  - **Não** edite arquivos no diretório principal para uma feature; ele fica só para
+    inspeção/coordenação. Exceções pontuais (ex.: editar este `CLAUDE.md`) devem ser
+    combinadas explicitamente.
 - **Testes** para parsing/validação (a parte com mais regras e casos de borda). Use
   fixtures de notas reais anonimizadas em `test/fixtures/` — **sem dados reais sensíveis**.
 - **Erros** com mensagens acionáveis (o que falhou + qual linha/arquivo). Sem `catch` vazio.
@@ -108,3 +131,17 @@ A planilha é a interface principal com o usuário — trate-a como API pública
 - **2026-06-25** — Stack base definida: Node.js + TypeScript, Google Sheets como fonte de
   planilha, Tesseract como OCR inicial (atrás de interface trocável). Pipeline por job
   assíncrono. _(planejamento detalhado pendente)_
+- **2026-06-25** — Decisões de escopo do v1 (confirmadas com o usuário):
+  - **Fonte da nota:** cada linha traz um **link direto para o arquivo (PDF/XML)**. O v1
+    apenas baixa e extrai; **não** há consulta por chave de acesso / SEFAZ (fica para depois).
+  - **Devolutiva:** **relatório na tela (web app)** — dashboard de progresso do job +
+    resumo ao final. (Resumo na planilha e e-mail ficam como evolução posterior.)
+  - **Acesso ao Sheets:** **OAuth Google do usuário** — o usuário faz login com Google e
+    autoriza o app a ler/escrever suas planilhas. Exige fluxo OAuth (consent screen) e
+    armazenamento seguro de refresh tokens. _(Atualizado: substitui a escolha inicial de
+    Service Account.)_
+- **2026-06-25** — Desenvolvimento em **git worktrees** (ver seção 7): cada feature é
+  construída por um chat do Claude em worktree/branch próprios, para permitir trabalho
+  paralelo sem conflito no diretório principal. Todos os worktrees vivem dentro da pasta
+  irmã `../analise-notas-fiscais-worktrees/` (uma subpasta por feature), para não poluir o
+  diretório pai.

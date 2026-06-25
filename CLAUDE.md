@@ -163,7 +163,7 @@ fatia, marque-a aqui (PR + estado).
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ✅ PR #6 mergeada |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
-| **F6 — API + Web** | Worker GoDeploy (SPA + rotas) + processamento por cron sobre `env.DB` | F0, F5 | 🟦 PR aberto (`feat/api-web`) |
+| **F6 — API + Web** | Worker GoDeploy (SPA + rotas) + processamento por cron sobre `env.DB` | F0, F5 | ✅ PR #10 mergeada |
 | **FUND — Migração GoDeploy/Workers** | reestruturar runtime p/ Cloudflare Workers (fila→`env.DB`+cron, SDKs Node→`fetch`/REST, OCR→HTTP) | F3, F4, F5 | 🟦 em andamento (iniciada na F6) |
 
 **Ordem sugerida:** mergear F0 → atacar **F1** e **F3/F4** em paralelo (não dependem entre

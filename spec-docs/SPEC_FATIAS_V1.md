@@ -2,10 +2,10 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0, F1, F2 (Extract), F3, F4 e F5 MERGEADAS** (PRs #1, #3,
-> #8, #5, #6 e #4, na `main`); **F6 (API + Web)** ainda a fazer. A extração de PDF da F2 foi
-> revista para usar o **Cloudflare OCR Worker** (PR `feat/ocr-worker` — substitui o
-> pdf-parse/Tesseract/pdfjs locais). Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0–F6 MERGEADAS** (PRs #1, #3, #8, #5, #6, #4 e #10, na
+> `main`) — **v1 fechado**. A extração de PDF da F2 usa o **Cloudflare OCR Worker** (#9); a F6
+> liga os provedores reais no Worker (`FileFetcherWorkers` + OCR Worker) via `src/api/deps.ts`.
+> Deploy no GoDeploy (app `687dbb00`).
 
 ## Visão geral
 
@@ -25,7 +25,7 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ✅ mergeada | F0 | #6 |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
-| F6 | **API + Web** (Worker GoDeploy: SPA + rotas + processamento por cron sobre `env.DB`) | 🟦 PR aberto (`feat/api-web`) | F0, F5 | — |
+| F6 | **API + Web** (Worker GoDeploy: SPA + rotas + processamento por cron sobre `env.DB`) | ✅ mergeada | F0, F5 | #10 |
 | FUND | **Migração GoDeploy/Workers** (fila→`env.DB`+cron, SDKs Node→`fetch`/REST, OCR→HTTP) | 🟦 em andamento (iniciada na F6) | F3, F4, F5 | — |
 
 **Critério de "verde" (gate de pronto)** por fatia: `npm run typecheck` sem erros (a F0
@@ -259,7 +259,7 @@ await fila.enfileirar(job);
 
 ---
 
-## F6 — API + Web 🟦 (fecha o v1 · branch `feat/api-web`)
+## F6 — API + Web ✅ (mergeada · PR #10 · fecha o v1)
 
 **O quê:** o app **GoDeploy (Cloudflare Workers)** que fecha o v1 — Worker com rotas HTTP +
 SPA (login Google, colar link, ver progresso e resumo = a **devolutiva na tela**). Consome F5

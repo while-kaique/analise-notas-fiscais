@@ -2,6 +2,23 @@
 
 Instruções para desenvolvimento neste repositório. Leia antes de codar.
 
+## 0. Documentação — três camadas
+
+A documentação do projeto vive em três níveis, com papéis distintos:
+
+| Camada | Onde | Papel |
+|--------|------|-------|
+| **Spec** | `spec-docs/` | **Planejamento/handoff:** o que vai ser feito, decisões fechadas, status e o mapa de onde cada coisa aterrissou. Bússola entre sessões/PRs. |
+| **Doc técnica** | `docs/` (quando existir) | Como o sistema funciona **hoje** (estado consolidado). |
+| **CLAUDE.md** | raiz | Regras operacionais + resumo vivo. |
+
+- O spec ativo é **[`spec-docs/SPEC_FATIAS_V1.md`](spec-docs/SPEC_FATIAS_V1.md)** (fatias F0–F6,
+  decisões fechadas, runbook). É **versionado** e **atualizado por decisão**, não por prompt:
+  ao mudar uma decisão ou uma fatia trocar de status, atualize-o **no mesmo PR**.
+- Há uma **memória persistente pareada** (`fatias-v1-spec-junho-2026`) que serve de gancho
+  entre sessões — o runbook do spec manda ler o spec + a memória ao retomar.
+- Ciclo de vida: quando o v1 fechar, o spec pode ser removido ou virar doc em `docs/`.
+
 ## 1. O que é o projeto
 
 Plataforma web que recebe o **link de uma planilha do Google Sheets**, lê os registros,
@@ -124,8 +141,14 @@ A planilha é a interface principal com o usuário — trate-a como API pública
   **registre o porquê** na seção de Decisões abaixo.
 - Mantenha este arquivo vivo: ao mudar uma convenção ou decisão de arquitetura,
   atualize aqui no mesmo PR.
+- **Mantenha o spec vivo (§0):** ao avançar uma fatia (status, PR, "onde aterrissou") ou
+  fechar/alterar uma decisão, atualize `spec-docs/SPEC_FATIAS_V1.md` **no mesmo PR**. Ao
+  retomar numa nova sessão, leia o spec + a memória `fatias-v1-spec-junho-2026` (runbook lá).
 
 ## 10. Roadmap de fatias (desenvolvimento paralelo)
+
+> Visão rápida. O **detalhe vivo** (escopo, "onde aterrissou", decisões, runbook) está em
+> **[`spec-docs/SPEC_FATIAS_V1.md`](spec-docs/SPEC_FATIAS_V1.md)** — mantenha os dois em sincronia.
 
 O projeto é dividido em **fatias independentes**, cada uma construída por um chat do Claude
 em seu próprio worktree (ver §7). A F0 define os **contratos** (tipos + interfaces em `src/`);
@@ -134,7 +157,7 @@ fatia, marque-a aqui (PR + estado).
 
 | Fatia | Escopo | Depende de | Estado |
 | ----- | ------ | ---------- | ------ |
-| **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 (em revisão) |
+| **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 mergeada |
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ⬜ A fazer |
 | **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ⬜ A fazer |

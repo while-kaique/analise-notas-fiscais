@@ -125,7 +125,29 @@ A planilha é a interface principal com o usuário — trate-a como API pública
 - Mantenha este arquivo vivo: ao mudar uma convenção ou decisão de arquitetura,
   atualize aqui no mesmo PR.
 
-## 10. Decisões (log)
+## 10. Roadmap de fatias (desenvolvimento paralelo)
+
+O projeto é dividido em **fatias independentes**, cada uma construída por um chat do Claude
+em seu próprio worktree (ver §7). A F0 define os **contratos** (tipos + interfaces em `src/`);
+as demais implementam contra esses contratos e podem rodar em paralelo. Ao concluir uma
+fatia, marque-a aqui (PR + estado).
+
+| Fatia | Escopo | Depende de | Estado |
+| ----- | ------ | ---------- | ------ |
+| **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 (em revisão) |
+| **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ⬜ A fazer |
+| **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
+| **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ⬜ A fazer |
+| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
+| **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ⬜ A fazer |
+| **F6 — API + Web** | endpoints HTTP + tela de login/link/progresso (a devolutiva) | F0, F5 | ⬜ A fazer |
+
+**Ordem sugerida:** mergear F0 → atacar **F1** e **F3/F4** em paralelo (não dependem entre
+si) → F2 (após F1) → F5 (após F2/F3/F4) → F6 (fecha). Frameworks ainda **a confirmar** por
+fatia: API (sugestão Fastify), fila (in-memory no v1 ou BullMQ+Redis), testes (Vitest, já no
+F0). Registre a escolha em §11 ao implementar.
+
+## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
 - **2026-06-25** — Stack base definida: Node.js + TypeScript, Google Sheets como fonte de

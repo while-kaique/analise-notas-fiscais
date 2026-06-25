@@ -161,7 +161,7 @@ fatia, marque-a aqui (PR + estado).
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ✅ PR #3 mergeada |
 | **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
-| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
+| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | 🟦 PR aberto (`feat/download`) |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
 | **F6 — API + Web** | endpoints HTTP + tela de login/link/progresso (a devolutiva) | F0, F5 | ⬜ A fazer |
 
@@ -220,3 +220,17 @@ F0). Registre a escolha em §11 ao implementar.
   F0. A validação fiscal forte (DV de CNPJ/CPF, plausibilidade) é responsabilidade da F1/F2,
   sinalizada via `NotaExtraida.avisos`/`confianca`. **Concorrência padrão de linhas = 4**
   (`CONCORRENCIA_PADRAO`, sobrescrevível por `opts.concorrencia`).
+- **2026-06-25 (F4)** — **Download implementado sem dependência externa nova** (só builtins do
+  Node: `node:crypto`, `node:dns/promises`, `fetch` global). Decisões da fatia:
+  - **SSRF guard puro** (`ssrf.ts`): só `http`/`https`; `ipBloqueado` classifica IPv4 **e** IPv6
+    (privado/loopback/link-local/CGNAT/multicast/reservado, IPv4-mapped `::ffff:` e zona `%`).
+    **Fail-safe:** IP não interpretável é bloqueado. O `FileFetcher` resolve o DNS e bloqueia se
+    **qualquer** IP resolvido for interno.
+  - **`fetch` com `redirect: 'error'`** — um redirect escaparia da checagem de SSRF.
+  - **`maxBytes` aplicado em dobro:** corte cedo por `Content-Length` **e** contagem durante o
+    stream (servidor pode mentir/omitir o header).
+  - **Cache de download por URL** (não por hash do conteúdo — o hash só é conhecido depois de
+    baixar): o mesmo link não é rebaixado na mesma instância. O `hash` SHA-256 segue no
+    `ArquivoBaixado` para o cache de OCR/extração da F2.
+  - **Limitação conhecida (documentada no código):** guard e `fetch` resolvem DNS em momentos
+    distintos (janela de DNS-rebinding). Aceitável no v1; mitigar depois pinando o IP na conexão.

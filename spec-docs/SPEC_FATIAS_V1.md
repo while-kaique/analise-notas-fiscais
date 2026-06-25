@@ -3,8 +3,9 @@
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
 > **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets) e
-> F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5 e #4, na `main`). **F2 (Extract), F4
-> (Download) e F6 (API + Web)** ainda a fazer. Sem deploy ainda (projeto em construção).
+> F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5 e #4, na `main`); **F4 (Download)** com PR
+> aberto (branch `feat/download`). **F2 (Extract) e F6 (API + Web)** ainda a fazer. Sem deploy
+> ainda (projeto em construção).
 
 ## Visão geral
 
@@ -22,7 +23,7 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
 | F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
-| F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
+| F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | 🟦 PR aberto | F0 | `feat/download` |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
 | F6 | **API + Web** (endpoints + tela de login/link/progresso = devolutiva) | ⬜ a fazer | F0, F5 | — |
 
@@ -160,15 +161,35 @@ criar colunas por cabeçalho, escrever em lote). Implementa `src/auth` e `src/sh
 
 ---
 
-## F4 — Download ⬜ (paraleliza com F1/F3)
+## F4 — Download 🟦 (PR aberto · branch `feat/download`)
 
 **O quê:** `FileFetcher` que baixa o PDF/XML do link da linha, com os cuidados de segurança.
 Implementa `src/download`.
 
-**Onde mexer (planejado):**
-- `src/download/` — `baixar(url)`: **SSRF guard** (bloquear IPs internos/localhost/link-local;
-  só http/https), respeitar `maxBytes`/`timeoutMs`, detectar tipo, calcular SHA-256 (cache).
-- Erros acionáveis (link morto, tamanho excedido, timeout, destino bloqueado). Testes do guard.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/download`, branch
+`feat/download` — typecheck 0 erros, 24 testes novos (96 no total), build ok):
+- **Sem dependência externa nova** — usa só os builtins do Node (`node:crypto` p/ SHA-256,
+  `node:dns/promises` p/ resolver o host, `fetch` global p/ a requisição).
+- **`src/download/ssrf.ts`** — guarda **pura e testável**: `validarUrl` (só `http`/`https`,
+  senão `DestinoBloqueadoError`), `ipBloqueado` (classifica IPv4 **e** IPv6 como interno/
+  privado/loopback/link-local/CGNAT/multicast/reservado, inclusive IPv4 mapeado em IPv6
+  `::ffff:…` e zona de escopo `%eth0`). **Fail-safe:** IP que não consegue interpretar é
+  bloqueado.
+- **`src/download/tipo-arquivo.ts`** — `detectarTipo` (puro): assinatura do **conteúdo** primeiro
+  (`%PDF-`, `<?xml`/raiz NF-e), `Content-Type` como desempate; `desconhecido` quando nada bate.
+  Conteúdo vence header mentiroso.
+- **`src/download/file-fetcher.ts`** — `FileFetcherImpl`/`criarFileFetcher`: valida URL → resolve
+  DNS e bloqueia se **qualquer** IP resolvido for interno → `fetch` com `redirect: 'error'`
+  (redirect burlaria o guard) e `AbortController` (timeout) → lê o corpo **respeitando `maxBytes`**
+  (corta cedo por `Content-Length` e também durante o stream) → SHA-256 + tipo. **Cache por URL**
+  (não rebaixa o mesmo link). Erros acionáveis via `DownloadError` (HTTP de erro, tamanho
+  excedido, timeout) e `DestinoBloqueadoError`. `fetch`/DNS são **injetáveis** (testes sem rede).
+- **Limitação conhecida (registrada no código):** o guard e o `fetch` resolvem o DNS em momentos
+  distintos (janela de **DNS-rebinding**). Aceitável no v1; mitigar depois pinando o IP resolvido
+  na conexão.
+- **Testes:** `test/ssrf.test.ts` (esquemas + faixas IPv4/IPv6 + fail-safe), `test/tipo-arquivo.test.ts`,
+  `test/file-fetcher.test.ts` (fakes de `fetch`/DNS: happy path + hash, cache, esquema bloqueado,
+  SSRF, `maxBytes` por header e por stream, HTTP 404, timeout). **Sem libs externas, sem rede real.**
 
 ---
 
@@ -255,9 +276,9 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- Nenhum worktree de feature aberto. Já removidos após o merge: F0 (`fundacao`, PR #1),
-  F5 (`pipeline-queue`, PR #4), F3 (`auth-sheets`, PR #5) e F1 (`parsing`, PR #3 — removido
-  logo após este merge).
+- **F4 (`download`, branch `feat/download`)** aberto durante a entrega desta fatia (remover após
+  o merge). Já removidos após o merge: F0 (`fundacao`, PR #1), F5 (`pipeline-queue`, PR #4),
+  F3 (`auth-sheets`, PR #5) e F1 (`parsing`, PR #3).
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

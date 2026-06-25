@@ -33,6 +33,21 @@ export {
   type CelulaEscrita,
 } from './sheets/index.js';
 export type { FileFetcher, OpcoesDownload } from './download/index.js';
+// F4 — implementação do download.
+export {
+  FileFetcherImpl,
+  criarFileFetcher,
+  DownloadError,
+  OPCOES_PADRAO,
+  validarUrl,
+  ipBloqueado,
+  DestinoBloqueadoError,
+  ESQUEMAS_PERMITIDOS,
+  detectarTipo,
+  type DepsFileFetcher,
+  type FetchLike,
+  type ResolverDns,
+} from './download/index.js';
 export type {
   NotaExtractor,
   OcrProvider,

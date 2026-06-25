@@ -158,7 +158,7 @@ fatia, marque-a aqui (PR + estado).
 | Fatia | Escopo | Depende de | Estado |
 | ----- | ------ | ---------- | ------ |
 | **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 mergeada |
-| **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ⬜ A fazer |
+| **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ✅ PR #3 mergeada |
 | **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
@@ -190,6 +190,13 @@ F0). Registre a escolha em §11 ao implementar.
   paralelo sem conflito no diretório principal. Todos os worktrees vivem dentro da pasta
   irmã `../analise-notas-fiscais-worktrees/` (uma subpasta por feature), para não poluir o
   diretório pai.
+- **2026-06-25** — F1 (parsing) implementada **sem dependência externa** (tudo função pura).
+  Convenções fechadas que F2/Extract e os demais devem assumir:
+  - **`valorParaCentavos`** — quando há os dois separadores, o **último** é o decimal; com um
+    separador único, 3 casas depois dele (ou mais de uma ocorrência) é tratado como **milhar**
+    (`"1.234"`→1234,00), senão decimal. Negativo via `-` ou parênteses `(...)`. Arredonda p/ centavo.
+  - **`normalizarData`** — janela de ano plausível **2000–2100** é constante (não usa "hoje",
+    para a função permanecer pura/determinística). Ajustar a janela aqui se necessário.
 - **2026-06-25** — **F3 (Auth + Sheets)** implementada. Decisões da fatia:
   - **Dep nova `googleapis`** (`^173`): SDK oficial do Google para OAuth2 + Sheets API v4.
     Tipos `OAuth2Client`/`Credentials` são **derivados** de `googleapis`

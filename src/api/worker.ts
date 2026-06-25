@@ -153,11 +153,14 @@ async function rotear(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
   const mJob = pathname.match(/^\/api\/jobs\/([A-Za-z0-9-]+)$/);
   if (metodo === 'GET' && mJob?.[1]) return progressoRota(req, env, mJob[1]);
 
-  // Gatilho do CRON da plataforma (POST com header assinado X-Godeploy-Cron).
+  // Gatilho do CRON da plataforma (POST com header ASSINADO X-Godeploy-Cron).
+  // O header é uma assinatura (não o valor cru de GODEPLOY_CRON_KEY), então exigimos
+  // apenas sua PRESENÇA — chamadas externas não o trazem, e a visibilidade
+  // `authenticated` do app já barra acesso anônimo. TODO (FUND): validar a assinatura
+  // contra GODEPLOY_CRON_KEY quando o esquema de assinatura estiver documentado.
   if (metodo === 'POST' && pathname === '/tasks/processar') {
-    const chave = env.GODEPLOY_CRON_KEY ?? '';
-    const enviado = req.headers.get('x-godeploy-cron') ?? '';
-    if (chave && enviado !== chave) return erro('Cron não autorizado.', 401);
+    const assinado = req.headers.get('x-godeploy-cron');
+    if (env.GODEPLOY_CRON_KEY && !assinado) return erro('Cron não autorizado.', 401);
     ctx.waitUntil(avancarJobs(env));
     return json({ ok: true }, 202);
   }

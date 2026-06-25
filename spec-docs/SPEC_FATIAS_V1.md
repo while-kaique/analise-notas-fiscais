@@ -2,8 +2,9 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação) MERGEADA** (PR #1, na `main`). As demais
-> (F1–F6) ainda não começaram. Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0 (Fundação) MERGEADA** (PR #1, na `main`). **F3 (Auth +
+> Sheets) pronta** na branch `feat/auth-sheets` (PR aberto). F1 em andamento em paralelo
+> (`feat/parsing`). F2/F4/F5/F6 a fazer. Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -20,7 +21,7 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ⬜ a fazer | F0 | — |
 | F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
-| F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ⬜ a fazer | F0 | — |
+| F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ pronta (PR aberto) | F0 | feat/auth-sheets |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ⬜ a fazer | F0, F2, F3, F4 | — |
 | F6 | **API + Web** (endpoints + tela de login/link/progresso = devolutiva) | ⬜ a fazer | F0, F5 | — |
@@ -114,17 +115,36 @@ os validadores da F1.
 
 ---
 
-## F3 — Auth + Sheets ⬜ (paraleliza com F1/F4)
+## F3 — Auth + Sheets ✅ (feito · branch `feat/auth-sheets`)
 
 **O quê:** `GoogleAuthProvider` (fluxo OAuth do usuário) + `SheetsClient` (ler linhas, achar/
 criar colunas por cabeçalho, escrever em lote). Implementa `src/auth` e `src/sheets`.
 
-**Onde mexer (planejado):**
-- Dependência `googleapis`. `src/auth/` → OAuth (getAuthUrl/exchangeCode/refresh), escopo
-  `spreadsheets`. `src/sheets/` → `lerLinhas`, `garantirColunas`, `escreverResultados`
-  (**batchUpdate**, nunca célula a célula), `extrairSpreadsheetId`.
-- Guardar refresh tokens com segurança (nunca commitar). Identificar coluna por **nome**.
-- Decidir framework só se necessário; registrar dep nova em CLAUDE.md §11. Testes do mapa de colunas.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/auth-sheets`, branch
+`feat/auth-sheets` — typecheck 0 erros, 30/30 testes, build ok):
+- **Dep nova:** `googleapis` (`^173`) — ver decisão em CLAUDE.md §11.
+- **`src/auth/`** — `google-auth-provider.ts`: `GoogleAuthProviderImpl`
+  (`getAuthUrl`/`exchangeCode`/`refresh`), escopo `spreadsheets`,
+  `access_type: 'offline'` + `prompt: 'consent'` (garante refresh token);
+  `mapearCredenciais` (Google → `TokensGoogle`, respeitando `exactOptionalPropertyTypes`);
+  `criarGoogleAuthProvider`. Tipos `OAuth2Client`/`Credentials` derivados de `googleapis`
+  (`InstanceType<typeof google.auth.OAuth2>`) para evitar conflito de cópias duplicadas de
+  `google-auth-library`.
+- **`src/sheets/`** — `sheets-client.ts`: `SheetsClientImpl` sobre Sheets API v4
+  (`lerLinhas`, `garantirColunas`, `escreverResultados` via **`values.batchUpdate`**),
+  fábricas `criarSheetsClient` (só access token) e `criarSheetsClientCom(config)` (com
+  auto-refresh). `spreadsheet-id.ts`: `extrairSpreadsheetId`. `colunas.ts`: lógica **pura e
+  testável** — `construirMapaColunas`, `acharColuna`/`acharColunaLink` (case-insensitive),
+  `colunaParaA1`, `centavosParaReais`, `resultadoParaCelulas`.
+- **Convenções decididas (ver §Contrato e CLAUDE.md §11):** coluna de link reconhecida por
+  cabeçalho entre `CABECALHOS_LINK` (`Link`/`Link Arquivo`/`Link da Nota`/`Link NF`/`Arquivo`/
+  `URL`); a coluna `Valor` é escrita em **reais como número** (centavos/100) — formatação
+  amigável para a planilha, sem mexer na unidade interna `valorTotalCentavos`. Campos
+  ausentes são escritos como `""` (limpa resíduo → reprocesso idempotente). Nunca toca em
+  colunas fora de `COLUNAS`.
+- **Testes:** `test/spreadsheet-id.test.ts`, `test/colunas.test.ts`, `test/google-auth.test.ts`
+  (URL de consentimento + mapeamento de credenciais), `test/sheets-client.test.ts` (fake da
+  Sheets API: leitura, criação de colunas, escrita em lote).
 
 ---
 
@@ -198,8 +218,11 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- Nenhum worktree de feature aberto. O da F0 (`../analise-notas-fiscais-worktrees/fundacao`)
-  foi removido após o merge do PR #1.
+- `../analise-notas-fiscais-worktrees/auth-sheets` (branch `feat/auth-sheets`) — **F3**, PR
+  aberto; remover após o merge.
+- `../analise-notas-fiscais-worktrees/parsing` (branch `feat/parsing`) — **F1**, em andamento
+  por outro chat em paralelo.
+- O da F0 (`../analise-notas-fiscais-worktrees/fundacao`) foi removido após o merge do PR #1.
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

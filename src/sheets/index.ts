@@ -44,3 +44,21 @@ export type CriarSheetsClient = (tokens: TokensGoogle) => Promise<SheetsClient>;
 /** Extrai o ID do spreadsheet a partir de uma URL do Google Sheets.
  *  Implementação (utilitário simples) pode viver na fatia F3. */
 export type ExtrairSpreadsheetId = (url: string) => string | null;
+
+// Implementação (fatia F3).
+export { extrairSpreadsheetId } from './spreadsheet-id.js';
+export {
+  SheetsClientImpl,
+  criarSheetsClient,
+  criarSheetsClientCom,
+} from './sheets-client.js';
+export {
+  construirMapaColunas,
+  acharColuna,
+  acharColunaLink,
+  colunaParaA1,
+  centavosParaReais,
+  resultadoParaCelulas,
+  CABECALHOS_LINK,
+  type CelulaEscrita,
+} from './colunas.js';

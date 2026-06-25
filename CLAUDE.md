@@ -160,9 +160,9 @@ fatia, marque-a aqui (PR + estado).
 | **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 mergeada |
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ⬜ A fazer |
 | **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
-| **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ⬜ A fazer |
+| **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
-| **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | 🟦 PR aberto (`feat/pipeline-queue`) |
+| **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
 | **F6 — API + Web** | endpoints HTTP + tela de login/link/progresso (a devolutiva) | F0, F5 | ⬜ A fazer |
 
 **Ordem sugerida:** mergear F0 → atacar **F1** e **F3/F4** em paralelo (não dependem entre
@@ -190,6 +190,18 @@ F0). Registre a escolha em §11 ao implementar.
   paralelo sem conflito no diretório principal. Todos os worktrees vivem dentro da pasta
   irmã `../analise-notas-fiscais-worktrees/` (uma subpasta por feature), para não poluir o
   diretório pai.
+- **2026-06-25** — **F3 (Auth + Sheets)** implementada. Decisões da fatia:
+  - **Dep nova `googleapis`** (`^173`): SDK oficial do Google para OAuth2 + Sheets API v4.
+    Tipos `OAuth2Client`/`Credentials` são **derivados** de `googleapis`
+    (`InstanceType<typeof google.auth.OAuth2>`), não importados de `google-auth-library`, para
+    evitar erro de tipo entre cópias duplicadas da lib sob `exactOptionalPropertyTypes`.
+  - **Coluna de link por cabeçalho:** reconhecida entre `CABECALHOS_LINK`
+    (`Link`/`Link Arquivo`/`Link da Nota`/`Link NF`/`Arquivo`/`URL`), case-insensitive — o
+    contrato da F0 não fixou um nome. Se nenhum casar, `lerLinhas` devolve `linkArquivo` vazio.
+  - **Coluna `Valor` escrita em reais como número** (centavos/100). A unidade **interna**
+    segue em centavos (`valorTotalCentavos`, decisão §11/spec); a conversão é só na escrita
+    da planilha, que é a superfície que o usuário lê. Campos ausentes viram `""` (limpa
+    resíduo → reprocesso idempotente). Escrita sempre via `values.batchUpdate`.
 - **2026-06-25 (F5)** — **Fila in-memory no v1** (`FilaEmMemoria`), atrás do contrato
   `JobQueue`. Motivo: o v1 não precisa de infra (Redis) e a interface permite migrar para
   BullMQ/Redis depois sem tocar no pipeline/API (CLAUDE.md §2). FIFO, um job por vez; job que

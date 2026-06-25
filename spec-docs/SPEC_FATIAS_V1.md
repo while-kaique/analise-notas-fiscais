@@ -4,7 +4,7 @@
 > `spec-docs/` (versionado no repo).
 > **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets),
 > F4 (Download) e F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5, #6 e #4, na `main`);
-> **F2 (Extract) com PR aberto** (branch `feat/extract`). **F6 (API + Web)** ainda a fazer.
+> **F2 (Extract) com PR #8 aberto** (branch `feat/extract`). **F6 (API + Web)** ainda a fazer.
 > Sem deploy ainda (projeto em construção).
 
 ## Visão geral
@@ -21,7 +21,7 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 |---|-------|--------|-----------|----|
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
-| F2 | **Extract** (cascata XML → pdf-parse → OCR) | 🟦 PR aberto | F0, F1 | `feat/extract` |
+| F2 | **Extract** (cascata XML → pdf-parse → OCR) | 🟦 PR aberto | F0, F1 | #8 |
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ✅ mergeada | F0 | #6 |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
@@ -114,7 +114,7 @@ de borda (CLAUDE.md §7). Implementa os contratos de `src/parsing/index.ts`.
 
 ---
 
-## F2 — Extract 🟦 (PR aberto · branch `feat/extract`)
+## F2 — Extract 🟦 (PR #8 aberto · branch `feat/extract`)
 
 **O quê:** `NotaExtractor` em cascata XML da NF-e → texto do PDF (`pdf-parse`) → OCR
 (`OcrProvider`/Tesseract `por`), da fonte mais confiável para a menos (CLAUDE.md §1). Consome

@@ -16,6 +16,13 @@ export type {
   OcrProvider,
   ResultadoOcr,
 } from './extract/index.js';
+export {
+  validarCnpj,
+  validarCpf,
+  somenteDigitos,
+  valorParaCentavos,
+  normalizarData,
+} from './parsing/index.js';
 export type {
   ValidarCnpj,
   ValidarCpf,

@@ -2,8 +2,8 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação) MERGEADA** (PR #1, na `main`). As demais
-> (F1–F6) ainda não começaram. Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0 (Fundação) e F1 (Parsing/validação) MERGEADAS**
+> (PRs #1 e #3, na `main`). F2–F6 ainda não começaram. Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -12,13 +12,13 @@ worktrees no CLAUDE.md §7). A **F0** define os contratos (tipos + interfaces em
 demais implementam contra esses contratos e podem rodar **em paralelo** (vários chats do
 Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do merge.
 
-**Ordem sugerida:** F0 ✅ → **F1 + F3 + F4 em paralelo** (independentes) → **F2** (após F1) →
+**Ordem sugerida:** F0 ✅ → **F1** ✅ → **F3 + F4 em paralelo** (independentes) → **F2** (após F1) →
 **F5** (após F2/F3/F4) → **F6** (fecha).
 
 | # | Fatia | Status | Depende de | PR |
 |---|-------|--------|-----------|----|
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
-| F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ⬜ a fazer | F0 | — |
+| F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
 | F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ⬜ a fazer | F0 | — |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
@@ -85,18 +85,30 @@ cada camada) que destravam o desenvolvimento paralelo das demais fatias.
 
 ---
 
-## F1 — Parsing/validação ⬜ (próxima · paraleliza com F3/F4)
+## F1 — Parsing/validação ✅ (feito · PR #3)
 
 **O quê:** funções **puras** (sem I/O) de parsing/validação — a parte com mais regras e casos
 de borda (CLAUDE.md §7). Implementa os contratos de `src/parsing/index.ts`.
 
-**Onde mexer (planejado):**
-- `src/parsing/` — implementar `validarCnpj`, `validarCpf`, `somenteDigitos`,
-  `valorParaCentavos`, `normalizarData` (assinaturas já tipadas na F0).
-- Validação real: CNPJ/CPF por dígito verificador; data plausível → `YYYY-MM-DD`;
-  `"R$ 1.234,56"`/`"1234,56"`/`"1234.56"` → inteiro em centavos; `null` quando implausível.
-- **Muitos testes** em `test/` (fixtures anonimizadas em `test/fixtures/`, sem dados reais).
-- Atualizar este spec (status → ✅ + "Onde aterrissou") e o CLAUDE.md se mudar convenção.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/parsing`, branch
+`feat/parsing`, PR #3 — typecheck 0 erros, 32 testes verdes, build ok):
+- **`src/parsing/index.ts`** — agora contém os **contratos (tipos)** da F0 **e** a
+  implementação concreta: `somenteDigitos`, `validarCnpj`, `validarCpf`, `valorParaCentavos`,
+  `normalizarData`. Sem nenhuma dependência externa nova (tudo é função pura).
+- **CNPJ/CPF:** validação pelos dois dígitos verificadores (módulo 11), aceitando com/sem
+  máscara; rejeita comprimento errado e sequências de dígito repetido (`000…`, `111…`).
+- **`valorParaCentavos`:** inteiro em **centavos**. Lida com `R$`/letras/espaços, decimal `,`
+  ou `.` (o **último** separador é o decimal quando há os dois), milhar removido, negativo
+  (`-` ou parênteses contábeis). Heurística de separador único: 3 casas após ele ou mais de
+  uma ocorrência ⇒ **milhar** (`"1.234"`→1234,00); senão decimal (`"12,5"`→12,50). Arredonda
+  para centavos. `null` quando não há dígito.
+- **`normalizarData`:** saída `YYYY-MM-DD`. Aceita ISO (com hora/`T`), BR `DD/MM/YYYY` (`/ - .`)
+  e ano de 2 dígitos (século 2000). Valida calendário real (inclui bissexto) e janela
+  plausível de ano **2000–2100** (constante, sem depender de "hoje", p/ manter a função pura);
+  `null` fora disso.
+- **Testes:** `test/parsing.test.ts` (28 casos). Vetores de CNPJ/CPF inline e anonimizados —
+  não foi preciso `test/fixtures/` (sem arquivos; fixtures de nota ficam para a F2/Extract).
+- **Barril:** `src/index.ts` passou a re-exportar as funções (value export) além dos tipos.
 
 ---
 
@@ -198,8 +210,9 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- Nenhum worktree de feature aberto. O da F0 (`../analise-notas-fiscais-worktrees/fundacao`)
-  foi removido após o merge do PR #1.
+- Nenhum worktree de feature aberto após o merge da F1. O da F0
+  (`../analise-notas-fiscais-worktrees/fundacao`) e o da F1
+  (`../analise-notas-fiscais-worktrees/parsing`) foram removidos após o merge dos PRs #1 e #3.
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

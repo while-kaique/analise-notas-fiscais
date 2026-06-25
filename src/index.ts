@@ -38,6 +38,23 @@ export type {
   OcrProvider,
   ResultadoOcr,
 } from './extract/index.js';
+// F2 — implementação de extract (cascata XML → texto do PDF → OCR).
+export {
+  NotaExtractorImpl,
+  criarNotaExtractor,
+  TesseractOcrProvider,
+  criarTesseractOcrProvider,
+  extrairCamposDeXml,
+  extrairCamposDeTexto,
+  montarNotaExtraida,
+  PESO_FONTE,
+  lerTextoPdf,
+  rasterizarPdf,
+  type DependenciasExtractor,
+  type CamposBrutos,
+  type RasterizadorPdf,
+  type OpcoesRaster,
+} from './extract/index.js';
 export {
   validarCnpj,
   validarCpf,

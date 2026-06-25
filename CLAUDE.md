@@ -159,7 +159,7 @@ fatia, marque-a aqui (PR + estado).
 | ----- | ------ | ---------- | ------ |
 | **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 mergeada |
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ✅ PR #3 mergeada |
-| **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
+| **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | 🟦 PR aberto (`feat/extract`) |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
@@ -220,3 +220,23 @@ F0). Registre a escolha em §11 ao implementar.
   F0. A validação fiscal forte (DV de CNPJ/CPF, plausibilidade) é responsabilidade da F1/F2,
   sinalizada via `NotaExtraida.avisos`/`confianca`. **Concorrência padrão de linhas = 4**
   (`CONCORRENCIA_PADRAO`, sobrescrevível por `opts.concorrencia`).
+- **2026-06-25 (F2)** — **Extract** implementada em cascata XML → texto do PDF → OCR
+  (`src/extract/`). Decisões da fatia:
+  - **Deps novas:** `fast-xml-parser` (`^4`, parse do XML da NF-e — `parseTagValue`/
+    `parseAttributeValue` **desligados** para não perder zeros à esquerda de CNPJ nem
+    reformatar valores), `pdf-parse` (`^1`, camada de texto do PDF — importado direto de
+    `pdf-parse/lib/pdf-parse.js` via `createRequire` para fugir do bloco de debug do
+    `index.js`), `tesseract.js` (`^5`, OCR `por`, atrás de `OcrProvider`), e para rasterizar
+    PDF escaneado p/ o OCR: `pdfjs-dist` (`^4`) + `@napi-rs/canvas` (`^0.1`, binários
+    pré-compilados — instala no Windows sem toolchain nativa).
+  - **F2 consome os validadores da F1** (`validarCnpj`/`validarCpf`/`valorParaCentavos`/
+    `normalizarData`) em `montar.ts` — diferente da F5, que ficou desacoplada de propósito.
+  - **Dependências de I/O injetáveis** (`DependenciasExtractor`: `lerTextoPdf`, `rasterizar`,
+    `ocr`): o orquestrador é fino e testável com fakes; as libs pesadas (pdf-parse/pdfjs/
+    canvas/tesseract) ficam nas bordas e o rasterizador é carregado por **import dinâmico**.
+  - **Confiança** = peso da fonte (XML 1.0 · PDF_TEXTO 0.85 · OCR = confiança do motor) ×
+    fração dos 3 campos críticos (CNPJ, data, valor) válidos. Campo faltante/inválido vira
+    `aviso` em vez de derrubar a extração — `extrair` **nunca lança** (falha isolada, §3).
+  - **Cascata por fonte mais confiável** (§1): XML > camada de texto do PDF (≥20 chars úteis e
+    algum campo aproveitável) > OCR (PDF escaneado). Tipo do arquivo detectado por `tipo` +
+    sniff do conteúdo (`%PDF`, `<?xml`/`<`).

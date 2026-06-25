@@ -24,7 +24,8 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
-| F6 | **API + Web** (endpoints + tela de login/link/progresso = devolutiva) | ⬜ a fazer | F0, F5 | — |
+| F6 | **API + Web** (Worker GoDeploy: SPA + rotas + processamento por cron sobre `env.DB`) | 🟦 PR aberto (`feat/api-web`) | F0, F5 | — |
+| FUND | **Migração GoDeploy/Workers** (fila→`env.DB`+cron, SDKs Node→`fetch`/REST, OCR→HTTP) | 🟦 em andamento (iniciada na F6) | F3, F4, F5 | — |
 
 **Critério de "verde" (gate de pronto)** por fatia: `npm run typecheck` sem erros (a F0
 deixou **0 erros**; qualquer erro novo é da fatia) · `npm test` tudo verde · `npm run build` ok.
@@ -211,15 +212,54 @@ await fila.enfileirar(job);
 
 ---
 
-## F6 — API + Web ⬜ (fecha o v1)
+## F6 — API + Web 🟦 (fecha o v1 · branch `feat/api-web`)
 
-**O quê:** HTTP (criar job, consultar progresso) + frontend (login Google, colar link, ver
-progresso e resumo = a **devolutiva na tela**). Consome F5.
+**O quê:** o app **GoDeploy (Cloudflare Workers)** que fecha o v1 — Worker com rotas HTTP +
+SPA (login Google, colar link, ver progresso e resumo = a **devolutiva na tela**). Consome F5
+pelos contratos, mas roda **Workers-native** (ver decisão de plataforma abaixo). **Sem framework
+HTTP** (roteamento manual no `fetch` handler) e **sem dependência externa nova**.
 
-**Onde mexer (planejado):**
-- `src/api/` — endpoints (sugestão **Fastify** — confirmar e registrar em §11): criar job,
-  callback OAuth, progresso (polling/SSE). `src/web/` — telas.
-- Validar link da planilha como **não confiável** (CLAUDE.md §6). Tratar planilha como API pública.
+**Decisão de plataforma (fechada com o usuário 2026-06-25 — "deploy no GoDeploy não é adiável"):**
+alvo = **GoDeploy / Cloudflare Workers**, runtime **stateless e sem background**. Consequências:
+- **Fila → `env.DB` + cron** (substitui `FilaEmMemoria`): `POST /api/jobs` persiste job+linhas
+  (`PENDENTE`) no SQLite embutido e responde já; um **cron trigger** avança **N linhas/tick**,
+  grava na planilha e marca `CONCLUIDO`/`ERRO`. Contrato `JobQueue` preservado.
+- **SDKs Node → `fetch`/REST:** `googleapis` (F3) e `node:dns` (F4) não rodam no Workers → a F6
+  traz `GoogleAuthProvider`/`SheetsClient` **Workers-native** via `fetch`, reaproveitando os
+  helpers **puros** de `colunas.ts`/`spreadsheet-id.ts`. Isso origina a task **FUND** (migração).
+- **OCR → HTTP** (Cloud Vision/Textract) atrás do `OcrProvider` (F2). No v1 da F6,
+  `FileFetcher`/`NotaExtractor` entram **via interface** com stubs acionáveis até F2/F4 migrarem.
+
+**Onde mexer:**
+- `src/api/` — `worker.ts` (`export default { fetch, scheduled }`), rotas: `GET /` (SPA),
+  `GET /api/auth/google`, `GET /auth/google/callback`, `GET /api/me`, `POST /api/jobs`
+  (valida link **não confiável**, CLAUDE.md §6), `GET /api/jobs/:id` (progresso). `env.ts`
+  (tipos `Env`/`DB`/`ExecutionContext` locais), `sessao.ts` (cookie assinado HMAC via Web
+  Crypto), `db.ts` (schema + repositório), `google.ts` (OAuth+Sheets REST), `processar.ts`
+  (seed + avanço em lote por cron).
+- `src/web/` — `index.html` + `app.js` + `styles.css` (SPA vanilla, servida como asset).
+
+**Deploy:** GoDeploy MCP — `getUploadToken` → upload → `createApp` (assets = SPA, entrypoint =
+worker, `env.DB`), `setAppSecret` (OAuth client id/secret + segredo de sessão), `createCronJob`
+(avança jobs). App **authenticated**.
+
+---
+
+## FUND — Migração GoDeploy/Workers 🟦 (task fundamental, iniciada na F6)
+
+**O quê:** task **fundamental e transversal** (não é uma fatia de feature) — adequar o runtime do
+v1 ao **Cloudflare Workers** do GoDeploy. Iniciada junto com a F6 (que já traz as primeiras peças
+Workers-native); o restante migra as fatias Node existentes.
+
+**Pendências da migração (rastrear aqui):**
+- [x] Fila in-memory (F5) → `env.DB` + cron (feito na F6, atrás de `JobQueue`).
+- [x] `SheetsClient`/`GoogleAuthProvider` googleapis (F3) → `fetch`/REST Workers-native (feito na F6).
+- [ ] `FileFetcher` (F4) usa `node:dns/promises` → reescrever SSRF guard p/ Workers (sem `dns`;
+      validar host/IP literais; aceitar limitação de DNS no edge) ou usar serviço de fetch externo.
+- [ ] `NotaExtractor` (F2): `pdf-parse`/Tesseract não rodam no Workers → PDF via lib compatível/WASM
+      e **OCR via HTTP** (Cloud Vision/Textract) atrás do `OcrProvider`.
+- [ ] Build/bundle do Worker no GoDeploy (entrypoint + assets + `env.DB`) e segredos por `setAppSecret`.
+- [ ] Cron de produção (`createCronJob`) com cadência/tamanho de lote afinados pela quota do Sheets.
 
 ---
 

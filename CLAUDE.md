@@ -163,12 +163,17 @@ fatia, marque-a aqui (PR + estado).
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
-| **F6 — API + Web** | endpoints HTTP + tela de login/link/progresso (a devolutiva) | F0, F5 | ⬜ A fazer |
+| **F6 — API + Web** | Worker GoDeploy (SPA + rotas) + processamento por cron sobre `env.DB` | F0, F5 | 🟦 PR aberto (`feat/api-web`) |
+| **FUND — Migração GoDeploy/Workers** | reestruturar runtime p/ Cloudflare Workers (fila→`env.DB`+cron, SDKs Node→`fetch`/REST, OCR→HTTP) | F3, F4, F5 | 🟦 em andamento (iniciada na F6) |
 
 **Ordem sugerida:** mergear F0 → atacar **F1** e **F3/F4** em paralelo (não dependem entre
 si) → F2 (após F1) → F5 (após F2/F3/F4) → F6 (fecha). Frameworks ainda **a confirmar** por
-fatia: API (sugestão Fastify), fila (in-memory no v1 ou BullMQ+Redis), testes (Vitest, já no
-F0). Registre a escolha em §11 ao implementar.
+fatia: fila (no v1 = `env.DB`+cron do GoDeploy, atrás do contrato `JobQueue`), testes (Vitest,
+já no F0). Registre a escolha em §11 ao implementar.
+
+> **Plataforma alvo (decisão 2026-06-25, ver §11): GoDeploy / Cloudflare Workers**, app SPA.
+> Runtime **stateless e sem processo em background** — daí a fila virar `env.DB`+cron e os SDKs
+> Node (`googleapis`, `pdf-parse`, `node:dns`) precisarem migrar para `fetch`/REST (task **FUND**).
 
 ## 11. Decisões (log)
 
@@ -220,3 +225,26 @@ F0). Registre a escolha em §11 ao implementar.
   F0. A validação fiscal forte (DV de CNPJ/CPF, plausibilidade) é responsabilidade da F1/F2,
   sinalizada via `NotaExtraida.avisos`/`confianca`. **Concorrência padrão de linhas = 4**
   (`CONCORRENCIA_PADRAO`, sobrescrevível por `opts.concorrencia`).
+- **2026-06-25 (F6 / Plataforma)** — **Alvo de deploy: GoDeploy (Cloudflare Workers)**, app SPA.
+  Decisão fundamental, confirmada com o usuário ("o deploy no GoDeploy não é adiável"). O v1
+  roda como **Worker stateless**. Implicações (origem da task **FUND — Migração**):
+  - **Processamento por `env.DB` + cron** (substitui a `FilaEmMemoria` da F5, que depende de
+    loop em background — inexistente no Workers): `POST /api/jobs` só **persiste** o job e suas
+    linhas (`PENDENTE`) no SQLite embutido (`env.DB`) e responde na hora; um **cron trigger** do
+    GoDeploy avança **N linhas por tick** (lote), grava resultado na planilha e marca
+    `CONCLUIDO`/`ERRO`. Aguenta planilha grande e se retoma sozinho. O contrato `JobQueue` da F0
+    é preservado (a F6 adiciona a impl sobre o banco; a in-memory segue para uso em Node/teste).
+  - **SDKs Node → `fetch`/REST:** `googleapis` (F3) e `node:dns` (F4) **não rodam** no Workers.
+    A F6 traz implementações **Workers-native** de `GoogleAuthProvider` e `SheetsClient` via
+    `fetch` (OAuth2 token endpoint + Sheets REST v4), reaproveitando os helpers **puros** de
+    `src/sheets/colunas.ts` e `src/sheets/spreadsheet-id.ts`. As impls googleapis (F3) seguem
+    no repo, mas são **superadas** no deploy. `pdf-parse`/Tesseract (F2) → ver OCR abaixo.
+  - **OCR via HTTP externo:** sem binário nativo no Workers, o `OcrProvider` da F2 deve apontar
+    para um serviço HTTP (Cloud Vision/Textract). A interface já permite; nenhuma mudança de
+    contrato. No v1 da F6, `FileFetcher`/`NotaExtractor` entram **via interface** (stubs
+    acionáveis até F2/F4 ganharem versões Workers-native).
+  - **Sessão por cookie assinado (HMAC via Web Crypto `crypto.subtle`)** — sem dep externa.
+    Tokens OAuth do usuário guardados no `env.DB` (nunca commitados; CLAUDE.md §6).
+  - **Sem dependência externa nova** na F6: worker e SPA são TS/JS puro + builtins (`fetch`,
+    `crypto`, `URL`); `env.DB`/cron são da plataforma. Tipos do Workers (`Env`, `DB`,
+    `ExecutionContext`) declarados localmente para o `tsc` (gate) não exigir `@cloudflare/workers-types`.

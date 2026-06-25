@@ -277,8 +277,9 @@ alvo = **GoDeploy / Cloudflare Workers**, runtime **stateless e sem background**
   `FileFetcher`/`NotaExtractor` entram **via interface** com stubs acionáveis até F2/F4 migrarem.
 
 **Onde mexer:**
-- `src/api/` — `worker.ts` (`export default { fetch, scheduled }`), rotas: `GET /` (SPA),
-  `GET /api/auth/google`, `GET /auth/google/callback`, `GET /api/me`, `POST /api/jobs`
+- `src/api/` — `worker.ts` (`export default { fetch }`; o cron do GoDeploy é **POST numa rota**,
+  `/tasks/processar` com header `X-Godeploy-Cron`, NÃO um handler `scheduled`), rotas: `GET /`
+  (SPA), `GET /api/auth/google`, `GET /auth/google/callback`, `GET /api/me`, `POST /api/jobs`
   (valida link **não confiável**, CLAUDE.md §6), `GET /api/jobs/:id` (progresso). `env.ts`
   (tipos `Env`/`DB`/`ExecutionContext` locais), `sessao.ts` (cookie assinado HMAC via Web
   Crypto), `db.ts` (schema + repositório), `google.ts` (OAuth+Sheets REST), `processar.ts`

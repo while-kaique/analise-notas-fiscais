@@ -234,6 +234,10 @@ já no F0). Registre a escolha em §11 ao implementar.
     GoDeploy avança **N linhas por tick** (lote), grava resultado na planilha e marca
     `CONCLUIDO`/`ERRO`. Aguenta planilha grande e se retoma sozinho. O contrato `JobQueue` da F0
     é preservado (a F6 adiciona a impl sobre o banco; a in-memory segue para uso em Node/teste).
+    **Atenção ao modelo de cron do GoDeploy:** NÃO é um handler `scheduled`/`setInterval` — a
+    plataforma faz **POST numa rota** do app (aqui `/tasks/processar`) com header assinado
+    `X-Godeploy-Cron`, validado contra `env.GODEPLOY_CRON_KEY`. O `createCronJob` (MCP) agenda
+    a chamada; a rota precisa já existir numa versão publicada.
   - **SDKs Node → `fetch`/REST:** `googleapis` (F3) e `node:dns` (F4) **não rodam** no Workers.
     A F6 traz implementações **Workers-native** de `GoogleAuthProvider` e `SheetsClient` via
     `fetch` (OAuth2 token endpoint + Sheets REST v4), reaproveitando os helpers **puros** de

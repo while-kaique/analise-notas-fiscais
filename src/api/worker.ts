@@ -153,6 +153,15 @@ async function rotear(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
   const mJob = pathname.match(/^\/api\/jobs\/([A-Za-z0-9-]+)$/);
   if (metodo === 'GET' && mJob?.[1]) return progressoRota(req, env, mJob[1]);
 
+  // Gatilho do CRON da plataforma (POST com header assinado X-Godeploy-Cron).
+  if (metodo === 'POST' && pathname === '/tasks/processar') {
+    const chave = env.GODEPLOY_CRON_KEY ?? '';
+    const enviado = req.headers.get('x-godeploy-cron') ?? '';
+    if (chave && enviado !== chave) return erro('Cron não autorizado.', 401);
+    ctx.waitUntil(avancarJobs(env));
+    return json({ ok: true }, 202);
+  }
+
   // Gatilho manual de processamento (útil sem esperar o cron; protegido por sessão).
   if (metodo === 'POST' && pathname === '/api/processar') {
     const id = await sessaoDoRequest(req, segredoSessao(env));
@@ -179,9 +188,6 @@ export default {
       return erro(msg, 500);
     }
   },
-
-  async scheduled(_evento: unknown, env: Env, ctx: ExecutionContext): Promise<void> {
-    // Cada tick avança um lote de cada job ativo (CLAUDE.md §11 — cron + env.DB).
-    ctx.waitUntil(avancarJobs(env));
-  },
+  // O cron do GoDeploy NÃO é um handler `scheduled`: a plataforma faz POST em
+  // /tasks/processar (ver rota acima). Não adicionar `scheduled`/setInterval aqui.
 };

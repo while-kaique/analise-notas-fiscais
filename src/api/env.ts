@@ -36,6 +36,8 @@ export interface Env {
   SESSION_SECRET?: string;
   /** Quantas linhas o cron processa por tick (default 10). */
   PROCESS_BATCH_SIZE?: string;
+  /** Chave injetada pela plataforma p/ autenticar a chamada do cron (POST /tasks/*). */
+  GODEPLOY_CRON_KEY?: string;
 }
 
 /** Contexto de execução do Worker (subset usado aqui). */

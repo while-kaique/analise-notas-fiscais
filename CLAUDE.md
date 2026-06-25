@@ -161,7 +161,7 @@ fatia, marque-a aqui (PR + estado).
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ✅ PR #3 mergeada |
 | **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
-| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | 🟦 PR aberto (`feat/download`) |
+| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ✅ PR #6 mergeada |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
 | **F6 — API + Web** | endpoints HTTP + tela de login/link/progresso (a devolutiva) | F0, F5 | ⬜ A fazer |
 

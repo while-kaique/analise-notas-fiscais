@@ -15,9 +15,28 @@
  */
 import type { ArquivoBaixado } from '../types/index.js';
 import type { FileFetcher, OpcoesDownload } from './index.js';
-import { DownloadError, OPCOES_PADRAO, type FetchLike } from './file-fetcher.js';
 import { DestinoBloqueadoError, ipBloqueado, validarUrl } from './ssrf.js';
 import { detectarTipo } from './tipo-arquivo.js';
+
+// Definições locais (node-free) — NÃO importar de `file-fetcher.ts`, que puxa
+// `node:dns`/`node:crypto` no topo e contaminaria o bundle do Worker (edge).
+
+/** Assinatura de `fetch` — injetável nos testes. */
+export type FetchLike = typeof fetch;
+
+/** Erro de download com mensagem acionável (link/tamanho/timeout/SSRF). */
+export class DownloadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DownloadError';
+  }
+}
+
+/** Limites padrão de download (sobrescritos pelo chamador). */
+const OPCOES_PADRAO: OpcoesDownload = {
+  maxBytes: 20 * 1024 * 1024, // 20 MB
+  timeoutMs: 30_000,
+};
 
 /** Remove colchetes de um host IPv6 literal (`[::1]` → `::1`). */
 function semColchetes(host: string): string {

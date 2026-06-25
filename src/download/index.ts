@@ -34,6 +34,8 @@ export {
   type FetchLike,
   type ResolverDns,
 } from './file-fetcher.js';
+// F4/FUND — variante Workers-native (só fetch + Web Crypto, sem node:dns/crypto).
+export { FileFetcherWorkers, criarFileFetcherWorkers } from './file-fetcher-workers.js';
 export {
   validarUrl,
   ipBloqueado,

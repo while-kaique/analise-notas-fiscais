@@ -33,3 +33,16 @@ export interface OcrProvider {
   /** Recebe uma imagem (ou página rasterizada) e devolve o texto. */
   reconhecer(imagem: Uint8Array, opts?: { langs?: string }): Promise<ResultadoOcr>;
 }
+
+// ───────────────────────────── Implementação (F2) ────────────────────────────
+
+export { NotaExtractorImpl, criarNotaExtractor } from './nota-extractor.js';
+export type { DependenciasExtractor } from './nota-extractor.js';
+export { TesseractOcrProvider, criarTesseractOcrProvider } from './tesseract-ocr.js';
+export { extrairCamposDeXml } from './xml.js';
+export { extrairCamposDeTexto } from './texto.js';
+export { montarNotaExtraida, PESO_FONTE } from './montar.js';
+export type { CamposBrutos } from './montar.js';
+export { lerTextoPdf } from './pdf.js';
+export { rasterizarPdf } from './rasterizar.js';
+export type { RasterizadorPdf, OpcoesRaster } from './rasterizar.js';

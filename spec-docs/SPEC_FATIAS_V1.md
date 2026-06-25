@@ -2,9 +2,10 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets) e
-> F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5 e #4, na `main`). **F2 (Extract), F4
-> (Download) e F6 (API + Web)** ainda a fazer. Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets),
+> F4 (Download) e F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5, #6 e #4, na `main`);
+> **F2 (Extract) com PR #8 aberto** (branch `feat/extract`). **F6 (API + Web)** ainda a fazer.
+> Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -20,9 +21,9 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 |---|-------|--------|-----------|----|
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
-| F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
+| F2 | **Extract** (cascata XML → pdf-parse → OCR) | 🟦 PR aberto | F0, F1 | #8 |
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
-| F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
+| F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ✅ mergeada | F0 | #6 |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
 | F6 | **API + Web** (Worker GoDeploy: SPA + rotas + processamento por cron sobre `env.DB`) | 🟦 PR aberto (`feat/api-web`) | F0, F5 | — |
 | FUND | **Migração GoDeploy/Workers** (fila→`env.DB`+cron, SDKs Node→`fetch`/REST, OCR→HTTP) | 🟦 em andamento (iniciada na F6) | F3, F4, F5 | — |
@@ -114,17 +115,42 @@ de borda (CLAUDE.md §7). Implementa os contratos de `src/parsing/index.ts`.
 
 ---
 
-## F2 — Extract ⬜ (depende de F1)
+## F2 — Extract 🟦 (PR #8 aberto · branch `feat/extract`)
 
 **O quê:** `NotaExtractor` em cascata XML da NF-e → texto do PDF (`pdf-parse`) → OCR
 (`OcrProvider`/Tesseract `por`), da fonte mais confiável para a menos (CLAUDE.md §1). Consome
 os validadores da F1.
 
-**Onde mexer (planejado):**
-- `src/extract/` — implementar `NotaExtractor` e ao menos um `OcrProvider` (Tesseract).
-- Dependência nova de OCR/PDF (ex.: `tesseract.js`, `pdf-parse`) → **registrar o porquê** em
-  CLAUDE.md §11 (Decisões). Pré-processar imagem antes do OCR (deskew/binarização/DPI).
-- Marcar baixa confiança em `NotaExtraida.avisos` em vez de gravar lixo. Testes com fixtures.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/extract`, branch
+`feat/extract` — typecheck 0 erros, 90/90 testes [22 novos], build ok):
+- **`src/extract/`** (orquestração fina + bordas de I/O atrás de deps injetáveis):
+  - `nota-extractor.ts` → `NotaExtractorImpl`/`criarNotaExtractor`: a **cascata**. Detecta o
+    tipo por `arquivo.tipo` + sniff (`%PDF`, `<?xml`/`<`). XML → `extrairCamposDeXml`; PDF →
+    camada de texto (`lerTextoPdf`, ≥20 chars úteis e algum campo aproveitável) e, se for
+    escaneado/sem texto, **OCR** (rasteriza as páginas + `OcrProvider`). **Nunca lança**:
+    falha no OCR cai para `PDF_TEXTO` com aviso (falha isolada, §3). Deps injetáveis em
+    `DependenciasExtractor` (`lerTextoPdf`/`rasterizar`/`ocr`/`langsOcr`/`minCaracteresTexto`).
+  - `xml.ts` → `extrairCamposDeXml`: **puro**. Busca tags por nome (case-insensitive,
+    preferindo a ocorrência mais externa) — robusto a NF-e/NFC-e/NFS-e e a `nfeProc` opcional.
+    `fast-xml-parser` com `parseTagValue`/`parseAttributeValue` **desligados** (preserva zeros
+    à esquerda de CNPJ e o formato do valor). `null` quando não é XML de nota → cascata segue.
+  - `texto.ts` → `extrairCamposDeTexto`: **puro/heurístico** (DANFE com texto **e** saída de
+    OCR). Chave de acesso (44 díg.) extraída e removida antes de buscar CNPJ; CNPJs com DV
+    válido em ordem (1º = emitente, 2º = destinatário; CPF como fallback de destinatário);
+    data e valor por rótulo, com fallback (1ª data / maior valor monetário).
+  - `montar.ts` → `montarNotaExtraida` + `CamposBrutos`/`PESO_FONTE`: **consome a F1**
+    (`validarCnpj`/`validarCpf`/`valorParaCentavos`/`normalizarData`) e monta `NotaExtraida`.
+    **Confiança** = peso da fonte (XML 1.0 · PDF_TEXTO 0.85 · OCR = confiança do motor) ×
+    fração dos 3 campos críticos (CNPJ/data/valor) válidos; campo ruim vira `aviso`.
+  - `pdf.ts` → `lerTextoPdf` (borda: `pdf-parse` via `createRequire` no subpath `lib/`);
+    `rasterizar.ts` → `rasterizarPdf`/`RasterizadorPdf` (borda: `pdfjs-dist` + `@napi-rs/canvas`,
+    import dinâmico, escala ~144 DPI, limite de páginas); `tesseract-ocr.ts` →
+    `TesseractOcrProvider`/`criarTesseractOcrProvider` (`por`, worker reusado, `encerrar()`).
+- **Deps novas:** `fast-xml-parser` `^4`, `pdf-parse` `^1`, `tesseract.js` `^5`, `pdfjs-dist`
+  `^4`, `@napi-rs/canvas` `^0.1` (ver CLAUDE.md §11 para o porquê de cada uma).
+- **Testes** (`test/`): `extract-xml`, `extract-texto`, `extract-montar`, `nota-extractor`
+  (cascata com fakes de `lerTextoPdf`/`rasterizar`/`ocr` — **sem libs externas nem PDF/dados
+  reais**). Vetores de CNPJ/CPF inline e anonimizados (sem `test/fixtures/`).
 
 ---
 
@@ -161,15 +187,35 @@ criar colunas por cabeçalho, escrever em lote). Implementa `src/auth` e `src/sh
 
 ---
 
-## F4 — Download ⬜ (paraleliza com F1/F3)
+## F4 — Download ✅ (feito · PR #6)
 
 **O quê:** `FileFetcher` que baixa o PDF/XML do link da linha, com os cuidados de segurança.
 Implementa `src/download`.
 
-**Onde mexer (planejado):**
-- `src/download/` — `baixar(url)`: **SSRF guard** (bloquear IPs internos/localhost/link-local;
-  só http/https), respeitar `maxBytes`/`timeoutMs`, detectar tipo, calcular SHA-256 (cache).
-- Erros acionáveis (link morto, tamanho excedido, timeout, destino bloqueado). Testes do guard.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/download`, branch
+`feat/download` — typecheck 0 erros, 24 testes novos (96 no total), build ok):
+- **Sem dependência externa nova** — usa só os builtins do Node (`node:crypto` p/ SHA-256,
+  `node:dns/promises` p/ resolver o host, `fetch` global p/ a requisição).
+- **`src/download/ssrf.ts`** — guarda **pura e testável**: `validarUrl` (só `http`/`https`,
+  senão `DestinoBloqueadoError`), `ipBloqueado` (classifica IPv4 **e** IPv6 como interno/
+  privado/loopback/link-local/CGNAT/multicast/reservado, inclusive IPv4 mapeado em IPv6
+  `::ffff:…` e zona de escopo `%eth0`). **Fail-safe:** IP que não consegue interpretar é
+  bloqueado.
+- **`src/download/tipo-arquivo.ts`** — `detectarTipo` (puro): assinatura do **conteúdo** primeiro
+  (`%PDF-`, `<?xml`/raiz NF-e), `Content-Type` como desempate; `desconhecido` quando nada bate.
+  Conteúdo vence header mentiroso.
+- **`src/download/file-fetcher.ts`** — `FileFetcherImpl`/`criarFileFetcher`: valida URL → resolve
+  DNS e bloqueia se **qualquer** IP resolvido for interno → `fetch` com `redirect: 'error'`
+  (redirect burlaria o guard) e `AbortController` (timeout) → lê o corpo **respeitando `maxBytes`**
+  (corta cedo por `Content-Length` e também durante o stream) → SHA-256 + tipo. **Cache por URL**
+  (não rebaixa o mesmo link). Erros acionáveis via `DownloadError` (HTTP de erro, tamanho
+  excedido, timeout) e `DestinoBloqueadoError`. `fetch`/DNS são **injetáveis** (testes sem rede).
+- **Limitação conhecida (registrada no código):** o guard e o `fetch` resolvem o DNS em momentos
+  distintos (janela de **DNS-rebinding**). Aceitável no v1; mitigar depois pinando o IP resolvido
+  na conexão.
+- **Testes:** `test/ssrf.test.ts` (esquemas + faixas IPv4/IPv6 + fail-safe), `test/tipo-arquivo.test.ts`,
+  `test/file-fetcher.test.ts` (fakes de `fetch`/DNS: happy path + hash, cache, esquema bloqueado,
+  SSRF, `maxBytes` por header e por stream, HTTP 404, timeout). **Sem libs externas, sem rede real.**
 
 ---
 
@@ -295,9 +341,10 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- Nenhum worktree de feature aberto. Já removidos após o merge: F0 (`fundacao`, PR #1),
-  F5 (`pipeline-queue`, PR #4), F3 (`auth-sheets`, PR #5) e F1 (`parsing`, PR #3 — removido
-  logo após este merge).
+- **F2 (`extract`, branch `feat/extract`) aberto** — remover após o merge do PR. Outro chat
+  toca `api-web` (F6) em paralelo. Já removidos após o merge: F0 (`fundacao`, PR #1),
+  F5 (`pipeline-queue`, PR #4), F3 (`auth-sheets`, PR #5), F1 (`parsing`, PR #3) e
+  F4 (`download`, PR #6).
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

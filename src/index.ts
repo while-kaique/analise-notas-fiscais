@@ -33,10 +33,42 @@ export {
   type CelulaEscrita,
 } from './sheets/index.js';
 export type { FileFetcher, OpcoesDownload } from './download/index.js';
+// F4 — implementação do download.
+export {
+  FileFetcherImpl,
+  criarFileFetcher,
+  DownloadError,
+  OPCOES_PADRAO,
+  validarUrl,
+  ipBloqueado,
+  DestinoBloqueadoError,
+  ESQUEMAS_PERMITIDOS,
+  detectarTipo,
+  type DepsFileFetcher,
+  type FetchLike,
+  type ResolverDns,
+} from './download/index.js';
 export type {
   NotaExtractor,
   OcrProvider,
   ResultadoOcr,
+} from './extract/index.js';
+// F2 — implementação de extract (cascata XML → texto do PDF → OCR).
+export {
+  NotaExtractorImpl,
+  criarNotaExtractor,
+  TesseractOcrProvider,
+  criarTesseractOcrProvider,
+  extrairCamposDeXml,
+  extrairCamposDeTexto,
+  montarNotaExtraida,
+  PESO_FONTE,
+  lerTextoPdf,
+  rasterizarPdf,
+  type DependenciasExtractor,
+  type CamposBrutos,
+  type RasterizadorPdf,
+  type OpcoesRaster,
 } from './extract/index.js';
 export {
   validarCnpj,

@@ -159,9 +159,9 @@ fatia, marque-a aqui (PR + estado).
 | ----- | ------ | ---------- | ------ |
 | **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 mergeada |
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ✅ PR #3 mergeada |
-| **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
+| **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | 🟦 PR #8 aberto |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
-| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
+| **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ✅ PR #6 mergeada |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
 | **F6 — API + Web** | Worker GoDeploy (SPA + rotas) + processamento por cron sobre `env.DB` | F0, F5 | 🟦 PR aberto (`feat/api-web`) |
 | **FUND — Migração GoDeploy/Workers** | reestruturar runtime p/ Cloudflare Workers (fila→`env.DB`+cron, SDKs Node→`fetch`/REST, OCR→HTTP) | F3, F4, F5 | 🟦 em andamento (iniciada na F6) |
@@ -248,3 +248,37 @@ já no F0). Registre a escolha em §11 ao implementar.
   - **Sem dependência externa nova** na F6: worker e SPA são TS/JS puro + builtins (`fetch`,
     `crypto`, `URL`); `env.DB`/cron são da plataforma. Tipos do Workers (`Env`, `DB`,
     `ExecutionContext`) declarados localmente para o `tsc` (gate) não exigir `@cloudflare/workers-types`.
+- **2026-06-25 (F2)** — **Extract** implementada em cascata XML → texto do PDF → OCR
+  (`src/extract/`). Decisões da fatia:
+  - **Deps novas:** `fast-xml-parser` (`^4`, parse do XML da NF-e — `parseTagValue`/
+    `parseAttributeValue` **desligados** para não perder zeros à esquerda de CNPJ nem
+    reformatar valores), `pdf-parse` (`^1`, camada de texto do PDF — importado direto de
+    `pdf-parse/lib/pdf-parse.js` via `createRequire` para fugir do bloco de debug do
+    `index.js`), `tesseract.js` (`^5`, OCR `por`, atrás de `OcrProvider`), e para rasterizar
+    PDF escaneado p/ o OCR: `pdfjs-dist` (`^4`) + `@napi-rs/canvas` (`^0.1`, binários
+    pré-compilados — instala no Windows sem toolchain nativa).
+  - **F2 consome os validadores da F1** (`validarCnpj`/`validarCpf`/`valorParaCentavos`/
+    `normalizarData`) em `montar.ts` — diferente da F5, que ficou desacoplada de propósito.
+  - **Dependências de I/O injetáveis** (`DependenciasExtractor`: `lerTextoPdf`, `rasterizar`,
+    `ocr`): o orquestrador é fino e testável com fakes; as libs pesadas (pdf-parse/pdfjs/
+    canvas/tesseract) ficam nas bordas e o rasterizador é carregado por **import dinâmico**.
+  - **Confiança** = peso da fonte (XML 1.0 · PDF_TEXTO 0.85 · OCR = confiança do motor) ×
+    fração dos 3 campos críticos (CNPJ, data, valor) válidos. Campo faltante/inválido vira
+    `aviso` em vez de derrubar a extração — `extrair` **nunca lança** (falha isolada, §3).
+  - **Cascata por fonte mais confiável** (§1): XML > camada de texto do PDF (≥20 chars úteis e
+    algum campo aproveitável) > OCR (PDF escaneado). Tipo do arquivo detectado por `tipo` +
+    sniff do conteúdo (`%PDF`, `<?xml`/`<`).
+- **2026-06-25 (F4)** — **Download implementado sem dependência externa nova** (só builtins do
+  Node: `node:crypto`, `node:dns/promises`, `fetch` global). Decisões da fatia:
+  - **SSRF guard puro** (`ssrf.ts`): só `http`/`https`; `ipBloqueado` classifica IPv4 **e** IPv6
+    (privado/loopback/link-local/CGNAT/multicast/reservado, IPv4-mapped `::ffff:` e zona `%`).
+    **Fail-safe:** IP não interpretável é bloqueado. O `FileFetcher` resolve o DNS e bloqueia se
+    **qualquer** IP resolvido for interno.
+  - **`fetch` com `redirect: 'error'`** — um redirect escaparia da checagem de SSRF.
+  - **`maxBytes` aplicado em dobro:** corte cedo por `Content-Length` **e** contagem durante o
+    stream (servidor pode mentir/omitir o header).
+  - **Cache de download por URL** (não por hash do conteúdo — o hash só é conhecido depois de
+    baixar): o mesmo link não é rebaixado na mesma instância. O `hash` SHA-256 segue no
+    `ArquivoBaixado` para o cache de OCR/extração da F2.
+  - **Limitação conhecida (documentada no código):** guard e `fetch` resolvem DNS em momentos
+    distintos (janela de DNS-rebinding). Aceitável no v1; mitigar depois pinando o IP na conexão.

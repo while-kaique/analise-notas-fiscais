@@ -23,3 +23,21 @@ export interface OpcoesDownload {
 export interface FileFetcher {
   baixar(url: string): Promise<ArquivoBaixado>;
 }
+
+// F4 — implementação do download (SSRF guard, limites, hash, cache).
+export {
+  FileFetcherImpl,
+  criarFileFetcher,
+  DownloadError,
+  OPCOES_PADRAO,
+  type DepsFileFetcher,
+  type FetchLike,
+  type ResolverDns,
+} from './file-fetcher.js';
+export {
+  validarUrl,
+  ipBloqueado,
+  DestinoBloqueadoError,
+  ESQUEMAS_PERMITIDOS,
+} from './ssrf.js';
+export { detectarTipo } from './tipo-arquivo.js';

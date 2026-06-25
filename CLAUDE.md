@@ -243,10 +243,13 @@ já no F0). Registre a escolha em §11 ao implementar.
     `fetch` (OAuth2 token endpoint + Sheets REST v4), reaproveitando os helpers **puros** de
     `src/sheets/colunas.ts` e `src/sheets/spreadsheet-id.ts`. As impls googleapis (F3) seguem
     no repo, mas são **superadas** no deploy. `pdf-parse`/Tesseract (F2) → ver OCR abaixo.
-  - **OCR via HTTP externo:** sem binário nativo no Workers, o `OcrProvider` da F2 deve apontar
-    para um serviço HTTP (Cloud Vision/Textract). A interface já permite; nenhuma mudança de
-    contrato. No v1 da F6, `FileFetcher`/`NotaExtractor` entram **via interface** (stubs
-    acionáveis até F2/F4 ganharem versões Workers-native).
+  - **OCR via HTTP externo:** sem binário nativo no Workers, o PDF é extraído pelo **Cloudflare
+    OCR Worker** (F2 revisão #9). **Atualização (2026-06-25):** os stubs `Indisponivel` foram
+    **substituídos pelos provedores reais** em `src/api/deps.ts` (`montarDeps(sheets, env)`):
+    `FileFetcherWorkers` (download só com `fetch` + Web Crypto) + `criarNotaExtractor({ ocrWorker })`
+    lendo `env.OCR_WORKER_URL`/`OCR_WORKER_TOKEN`. SSRF no edge sem `node:dns`: bloqueia IP literal
+    interno + hostnames internos por nome (`localhost`/`.local`/`.internal`/metadados), confiando no
+    isolamento de rede do edge + `redirect:'error'` para o resto (pinagem de IP fica p/ depois).
   - **Sessão por cookie assinado (HMAC via Web Crypto `crypto.subtle`)** — sem dep externa.
     Tokens OAuth do usuário guardados no `env.DB` (nunca commitados; CLAUDE.md §6).
   - **Sem dependência externa nova** na F6: worker e SPA são TS/JS puro + builtins (`fetch`,

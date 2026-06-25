@@ -302,10 +302,13 @@ Workers-native); o restante migra as fatias Node existentes.
 **Pendências da migração (rastrear aqui):**
 - [x] Fila in-memory (F5) → `env.DB` + cron (feito na F6, atrás de `JobQueue`).
 - [x] `SheetsClient`/`GoogleAuthProvider` googleapis (F3) → `fetch`/REST Workers-native (feito na F6).
-- [ ] `FileFetcher` (F4) usa `node:dns/promises` → reescrever SSRF guard p/ Workers (sem `dns`;
-      validar host/IP literais; aceitar limitação de DNS no edge) ou usar serviço de fetch externo.
-- [ ] `NotaExtractor` (F2): `pdf-parse`/Tesseract não rodam no Workers → PDF via lib compatível/WASM
-      e **OCR via HTTP** (Cloud Vision/Textract) atrás do `OcrProvider`.
+- [x] `FileFetcher` (F4) usava `node:dns/promises` → **`FileFetcherWorkers`** (`src/download/
+      file-fetcher-workers.ts`): só `fetch` + Web Crypto. SSRF no edge: bloqueia IP literal interno
+      (`ipBloqueado`) + hostnames internos por nome (`localhost`/`.local`/`.internal`/metadados);
+      sem pré-resolução de DNS (mitigado pelo isolamento de rede do edge + `redirect:'error'`).
+- [x] `NotaExtractor` (F2): `pdf-parse`/Tesseract não rodam no Workers → **Cloudflare OCR Worker**
+      (PDF→texto/OCR via HTTP, F2 revisão #9). Ligado no Worker via `montarDeps` (`src/api/deps.ts`),
+      lendo `env.OCR_WORKER_URL`/`OCR_WORKER_TOKEN` (segredos por `setAppSecret`).
 - [ ] Build/bundle do Worker no GoDeploy (entrypoint + assets + `env.DB`) e segredos por `setAppSecret`.
 - [ ] Cron de produção (`createCronJob`) com cadência/tamanho de lote afinados pela quota do Sheets.
 

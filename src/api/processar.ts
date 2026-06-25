@@ -26,7 +26,7 @@ import {
   atualizarTokensSessao,
 } from './db.js';
 import { GoogleAuthRest, SheetsRest, type CredenciaisApp } from './google.js';
-import { montarDepsStub } from './stubs.js';
+import { montarDeps } from './deps.js';
 
 /** Quantas linhas processar por tick (cron). Default 10; afinar pela quota do Sheets. */
 const LOTE_PADRAO = 10;
@@ -134,7 +134,7 @@ async function avancarJob(env: Env, job: RegistroJob, lote: number): Promise<voi
   await sheets.escreverResultados(job.spreadsheetId, marcadores, job.aba);
 
   // Processa o lote com concorrência limitada; `processarLinha` não lança.
-  const deps = montarDepsStub(sheets);
+  const deps = montarDeps(sheets, env);
   const resultados = await processarComConcorrencia(pendentes, CONCORRENCIA, (linha) =>
     processarLinha(linha, deps),
   );

@@ -38,6 +38,11 @@ export interface Env {
   PROCESS_BATCH_SIZE?: string;
   /** Chave injetada pela plataforma p/ autenticar a chamada do cron (POST /tasks/*). */
   GODEPLOY_CRON_KEY?: string;
+  /** Cloudflare OCR Worker: extração de texto/OCR de PDF (F2). Secrets via `setAppSecret`. */
+  OCR_WORKER_URL?: string;
+  OCR_WORKER_TOKEN?: string;
+  /** Timeout (ms) da chamada ao OCR Worker. Default 60000. */
+  OCR_WORKER_TIMEOUT_MS?: string;
 }
 
 /** Contexto de execução do Worker (subset usado aqui). */

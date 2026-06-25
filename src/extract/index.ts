@@ -6,8 +6,8 @@ import type { ArquivoBaixado, NotaExtraida } from '../types/index.js';
  *
  * Cascata de fontes, da mais confiável para a menos (CLAUDE.md §1):
  *   1. XML da NF-e   → parsing estruturado
- *   2. Texto do PDF  → `pdf-parse` (PDF com camada de texto)
- *   3. OCR           → `OcrProvider` (último recurso, PDF escaneado)
+ *   2. PDF           → Cloudflare **OCR Worker** (`ocr-worker.ts`): faz a camada de
+ *                      texto E o OCR de escaneados server-side, num único passo.
  *
  * A `fonte` do `NotaExtraida` indica qual caminho foi usado.
  */
@@ -23,11 +23,9 @@ export interface ResultadoOcr {
 }
 
 /**
- * Motor de OCR, atrás de interface para trocar Tesseract → Cloud Vision /
- * Textract sem reescrever o pipeline (CLAUDE.md §2).
- *
- * Pré-processamento da imagem (deskew, binarização, DPI) é responsabilidade
- * da implementação antes de chamar o motor (CLAUDE.md §5).
+ * Motor de OCR atrás de interface (CLAUDE.md §2). **Contrato preservado da F0**,
+ * porém sem implementação local no v1: o OCR de PDF é feito pelo Cloudflare OCR
+ * Worker (ver `ocr-worker.ts`). Mantido para um eventual provider local futuro.
  */
 export interface OcrProvider {
   /** Recebe uma imagem (ou página rasterizada) e devolve o texto. */
@@ -38,11 +36,9 @@ export interface OcrProvider {
 
 export { NotaExtractorImpl, criarNotaExtractor } from './nota-extractor.js';
 export type { DependenciasExtractor } from './nota-extractor.js';
-export { TesseractOcrProvider, criarTesseractOcrProvider } from './tesseract-ocr.js';
 export { extrairCamposDeXml } from './xml.js';
 export { extrairCamposDeTexto } from './texto.js';
 export { montarNotaExtraida, PESO_FONTE } from './montar.js';
 export type { CamposBrutos } from './montar.js';
-export { lerTextoPdf } from './pdf.js';
-export { rasterizarPdf } from './rasterizar.js';
-export type { RasterizadorPdf, OpcoesRaster } from './rasterizar.js';
+export { criarLeitorPdf } from './ocr-worker.js';
+export type { OcrWorkerConfig, LeitorPdf } from './ocr-worker.js';

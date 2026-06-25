@@ -159,7 +159,7 @@ fatia, marque-a aqui (PR + estado).
 | ----- | ------ | ---------- | ------ |
 | **F0 — Fundação** | `tsconfig` strict, tipos compartilhados, interfaces de todas as camadas, `loadConfig` | — | ✅ PR #1 mergeada |
 | **F1 — Parsing/validação** | funções puras: CNPJ/CPF (DV), `ValorParaCentavos`, `NormalizarData`, normalização. Muitos testes. | F0 | ✅ PR #3 mergeada |
-| **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | 🟦 PR #8 aberto |
+| **F2 — Extract** | `NotaExtractor` cascata XML → **Cloudflare OCR Worker** (PDF→texto+OCR) | F0, F1 | ✅ PR #8 mergeada (+ revisão p/ worker) |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ✅ PR #5 mergeada |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ✅ PR #6 mergeada |
 | **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ✅ PR #4 mergeada |
@@ -240,6 +240,24 @@ F0). Registre a escolha em §11 ao implementar.
   - **Cascata por fonte mais confiável** (§1): XML > camada de texto do PDF (≥20 chars úteis e
     algum campo aproveitável) > OCR (PDF escaneado). Tipo do arquivo detectado por `tipo` +
     sniff do conteúdo (`%PDF`, `<?xml`/`<`).
+- **2026-06-25 (F2 — revisão da extração de PDF)** — **PDF passa a ser extraído pelo Cloudflare
+  OCR Worker** (mesmo worker já usado em produção no godocs). Decidido com o usuário; substitui
+  a forma "manual" local. Impactos:
+  - **Cascata simplificada:** XML → **OCR Worker** (o worker faz camada de texto **e** OCR de
+    escaneados num passo só). Sumiram o degrau de OCR local e a distinção PDF_TEXTO/OCR — o
+    texto do worker é tratado como `PDF_TEXTO` (peso 0.85).
+  - **Deps REMOVIDAS:** `pdf-parse`, `tesseract.js`, `pdfjs-dist`, `@napi-rs/canvas` (e os
+    arquivos `pdf.ts`/`rasterizar.ts`/`tesseract-ocr.ts`). Resta só `fast-xml-parser` para o XML.
+  - **Borda HTTP** em `src/extract/ocr-worker.ts` → `criarLeitorPdf(config)`: `POST` com
+    `Content-Type: application/pdf` + `Authorization: Bearer <token>` e os bytes do PDF;
+    resposta `{ text? | content? }`; timeout via `AbortController` (default 60s).
+  - **Config/segredo:** `ConfigOcr` virou `{ workerUrl, workerToken, timeoutMs }`
+    (`OCR_WORKER_URL`/`OCR_WORKER_TOKEN`/`OCR_WORKER_TIMEOUT_MS`). **`OCR_WORKER_TOKEN` é
+    segredo** — só no `.env` real (placeholder no `.env.example`); nunca commitar (§6).
+  - **`OcrProvider`/`ResultadoOcr`** (contrato da F0) ficam declarados mas **sem implementação
+    local** no v1 — reservados para um provider local futuro.
+  - **Trade-off aceito:** sem fallback de OCR local — se o worker cair, a linha vira `ERRO`
+    isolado (não derruba o lote).
 - **2026-06-25 (F4)** — **Download implementado sem dependência externa nova** (só builtins do
   Node: `node:crypto`, `node:dns/promises`, `fetch` global). Decisões da fatia:
   - **SSRF guard puro** (`ssrf.ts`): só `http`/`https`; `ipBloqueado` classifica IPv4 **e** IPv6

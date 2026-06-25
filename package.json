@@ -27,6 +27,11 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
-    "googleapis": "^173.0.0"
+    "@napi-rs/canvas": "^0.1.100",
+    "fast-xml-parser": "^4.5.6",
+    "googleapis": "^173.0.0",
+    "pdf-parse": "^1.1.4",
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^5.1.1"
   }
 }

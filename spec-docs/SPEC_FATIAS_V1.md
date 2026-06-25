@@ -2,10 +2,9 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets) e
-> F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5 e #4, na `main`); **F4 (Download)** com PR
-> aberto (branch `feat/download`). **F2 (Extract) e F6 (API + Web)** ainda a fazer. Sem deploy
-> ainda (projeto em construção).
+> **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets),
+> F4 (Download) e F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5, #6 e #4, na `main`).
+> **F2 (Extract) e F6 (API + Web)** ainda a fazer. Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -23,7 +22,7 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
 | F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
-| F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | 🟦 PR aberto | F0 | `feat/download` |
+| F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ✅ mergeada | F0 | #6 |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
 | F6 | **API + Web** (endpoints + tela de login/link/progresso = devolutiva) | ⬜ a fazer | F0, F5 | — |
 
@@ -161,7 +160,7 @@ criar colunas por cabeçalho, escrever em lote). Implementa `src/auth` e `src/sh
 
 ---
 
-## F4 — Download 🟦 (PR aberto · branch `feat/download`)
+## F4 — Download ✅ (feito · PR #6)
 
 **O quê:** `FileFetcher` que baixa o PDF/XML do link da linha, com os cuidados de segurança.
 Implementa `src/download`.
@@ -276,9 +275,9 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- **F4 (`download`, branch `feat/download`)** aberto durante a entrega desta fatia (remover após
-  o merge). Já removidos após o merge: F0 (`fundacao`, PR #1), F5 (`pipeline-queue`, PR #4),
-  F3 (`auth-sheets`, PR #5) e F1 (`parsing`, PR #3).
+- Worktrees de outras fatias em andamento (outros chats): `extract` (F2) e `api-web` (F6).
+  Já removidos após o merge: F0 (`fundacao`, PR #1), F5 (`pipeline-queue`, PR #4),
+  F3 (`auth-sheets`, PR #5), F1 (`parsing`, PR #3) e F4 (`download`, PR #6).
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

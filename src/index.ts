@@ -4,11 +4,33 @@
  */
 export * from './types/index.js';
 export type { GoogleAuthProvider } from './auth/index.js';
+// F3 — implementação de auth (OAuth do usuário).
+export {
+  GoogleAuthProviderImpl,
+  criarGoogleAuthProvider,
+  ESCOPO_SHEETS,
+  type ConfigOAuth,
+} from './auth/index.js';
 export type {
   SheetsClient,
   LeituraPlanilha,
   CriarSheetsClient,
   ExtrairSpreadsheetId,
+} from './sheets/index.js';
+// F3 — implementação de sheets (I/O por cabeçalho, escrita em lote).
+export {
+  extrairSpreadsheetId,
+  SheetsClientImpl,
+  criarSheetsClient,
+  criarSheetsClientCom,
+  construirMapaColunas,
+  acharColuna,
+  acharColunaLink,
+  colunaParaA1,
+  centavosParaReais,
+  resultadoParaCelulas,
+  CABECALHOS_LINK,
+  type CelulaEscrita,
 } from './sheets/index.js';
 export type { FileFetcher, OpcoesDownload } from './download/index.js';
 export type {
@@ -36,7 +58,15 @@ export type {
   ProcessarJob,
   OnProgresso,
 } from './pipeline/index.js';
+export {
+  processarLinha,
+  processarJob,
+  processarComConcorrencia,
+  validarNotaExtraida,
+  CONCORRENCIA_PADRAO,
+} from './pipeline/index.js';
 export type { JobQueue, JobHandler } from './queue/index.js';
+export { FilaEmMemoria } from './queue/index.js';
 export {
   loadConfig,
   type Config,

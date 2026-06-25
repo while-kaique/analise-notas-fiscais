@@ -2,8 +2,9 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação) e F1 (Parsing/validação) MERGEADAS**
-> (PRs #1 e #3, na `main`). F2–F6 ainda não começaram. Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets) e
+> F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5 e #4, na `main`). **F2 (Extract), F4
+> (Download) e F6 (API + Web)** ainda a fazer. Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -20,9 +21,9 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
 | F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
-| F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ⬜ a fazer | F0 | — |
+| F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
-| F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ⬜ a fazer | F0, F2, F3, F4 | — |
+| F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
 | F6 | **API + Web** (endpoints + tela de login/link/progresso = devolutiva) | ⬜ a fazer | F0, F5 | — |
 
 **Critério de "verde" (gate de pronto)** por fatia: `npm run typecheck` sem erros (a F0
@@ -126,17 +127,36 @@ os validadores da F1.
 
 ---
 
-## F3 — Auth + Sheets ⬜ (paraleliza com F1/F4)
+## F3 — Auth + Sheets ✅ (feito · branch `feat/auth-sheets`)
 
 **O quê:** `GoogleAuthProvider` (fluxo OAuth do usuário) + `SheetsClient` (ler linhas, achar/
 criar colunas por cabeçalho, escrever em lote). Implementa `src/auth` e `src/sheets`.
 
-**Onde mexer (planejado):**
-- Dependência `googleapis`. `src/auth/` → OAuth (getAuthUrl/exchangeCode/refresh), escopo
-  `spreadsheets`. `src/sheets/` → `lerLinhas`, `garantirColunas`, `escreverResultados`
-  (**batchUpdate**, nunca célula a célula), `extrairSpreadsheetId`.
-- Guardar refresh tokens com segurança (nunca commitar). Identificar coluna por **nome**.
-- Decidir framework só se necessário; registrar dep nova em CLAUDE.md §11. Testes do mapa de colunas.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/auth-sheets`, branch
+`feat/auth-sheets` — typecheck 0 erros, 30/30 testes, build ok):
+- **Dep nova:** `googleapis` (`^173`) — ver decisão em CLAUDE.md §11.
+- **`src/auth/`** — `google-auth-provider.ts`: `GoogleAuthProviderImpl`
+  (`getAuthUrl`/`exchangeCode`/`refresh`), escopo `spreadsheets`,
+  `access_type: 'offline'` + `prompt: 'consent'` (garante refresh token);
+  `mapearCredenciais` (Google → `TokensGoogle`, respeitando `exactOptionalPropertyTypes`);
+  `criarGoogleAuthProvider`. Tipos `OAuth2Client`/`Credentials` derivados de `googleapis`
+  (`InstanceType<typeof google.auth.OAuth2>`) para evitar conflito de cópias duplicadas de
+  `google-auth-library`.
+- **`src/sheets/`** — `sheets-client.ts`: `SheetsClientImpl` sobre Sheets API v4
+  (`lerLinhas`, `garantirColunas`, `escreverResultados` via **`values.batchUpdate`**),
+  fábricas `criarSheetsClient` (só access token) e `criarSheetsClientCom(config)` (com
+  auto-refresh). `spreadsheet-id.ts`: `extrairSpreadsheetId`. `colunas.ts`: lógica **pura e
+  testável** — `construirMapaColunas`, `acharColuna`/`acharColunaLink` (case-insensitive),
+  `colunaParaA1`, `centavosParaReais`, `resultadoParaCelulas`.
+- **Convenções decididas (ver §Contrato e CLAUDE.md §11):** coluna de link reconhecida por
+  cabeçalho entre `CABECALHOS_LINK` (`Link`/`Link Arquivo`/`Link da Nota`/`Link NF`/`Arquivo`/
+  `URL`); a coluna `Valor` é escrita em **reais como número** (centavos/100) — formatação
+  amigável para a planilha, sem mexer na unidade interna `valorTotalCentavos`. Campos
+  ausentes são escritos como `""` (limpa resíduo → reprocesso idempotente). Nunca toca em
+  colunas fora de `COLUNAS`.
+- **Testes:** `test/spreadsheet-id.test.ts`, `test/colunas.test.ts`, `test/google-auth.test.ts`
+  (URL de consentimento + mapeamento de credenciais), `test/sheets-client.test.ts` (fake da
+  Sheets API: leitura, criação de colunas, escrita em lote).
 
 ---
 
@@ -152,17 +172,42 @@ Implementa `src/download`.
 
 ---
 
-## F5 — Pipeline + Queue ⬜ (depende de F2/F3/F4)
+## F5 — Pipeline + Queue 🟦 (PR aberto · branch `feat/pipeline-queue`)
 
 **O quê:** orquestração — `ProcessarLinha`/`ProcessarJob` + `JobQueue`. Junta sheets+download+
-extract atrás das interfaces. Implementa `src/pipeline` e `src/queue`.
+extract atrás das interfaces. Implementa `src/pipeline` e `src/queue`. **Não depende das
+implementações concretas de F2/F3/F4** — só dos contratos da F0 (por isso pôde ser feita antes
+delas, com fakes nos testes).
 
-**Onde mexer (planejado):**
-- `src/pipeline/` — por linha: marca `PROCESSANDO`, baixa → extrai → valida → escreve;
-  **idempotência** (pula `CONCLUIDO`), **falha isolada** (erro vira `LinhaResultado` ERRO, não
-  derruba o lote), concorrência limitada, escrita em lote. `onProgresso` alimenta a devolutiva.
-- `src/queue/` — fila + progresso. v1 pode ser **in-memory** atrás de `JobQueue` (decidir; se
-  for BullMQ/Redis, registrar em CLAUDE.md §11). Testes de idempotência/falha isolada.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/pipeline-queue`,
+branch `feat/pipeline-queue` — typecheck limpo, 18/18 testes, build ok):
+- `src/pipeline/`:
+  - `processar-linha.ts` → `processarLinha`: baixa → extrai → **valida (estrutural)** → devolve
+    `LinhaResultado`. **Nunca lança** — qualquer erro vira status `ERRO` com mensagem acionável
+    (falha isolada, CLAUDE.md §3).
+  - `processar-job.ts` → `processarJob`: lê a planilha, `garantirColunas(Object.values(COLUNAS))`,
+    **idempotência** (pula `CONCLUIDO`), marca `PROCESSANDO` **em lote antes** de processar
+    (anti-corrida), processa com **concorrência limitada** (`CONCORRENCIA_PADRAO=4`), grava o
+    resultado final em lote (`escreverResultados`, nunca célula a célula). Emite `onProgresso`
+    por linha (status inicial e final; inclui as já concluídas no total).
+  - `validacao.ts` → `validarNotaExtraida` (estrutural: CNPJ 14 díg., data ISO, valor inteiro
+    ≥0). **Pura e local de propósito** — a F5 não importa as funções concretas da F1 (que evolui
+    em paralelo); a validação fiscal forte é da F1/F2 (via `avisos`/`confianca`).
+  - `concorrencia.ts` → `processarComConcorrencia` (pool ordenado) + `agora()` (ISO 8601).
+- `src/queue/` → `fila-em-memoria.ts` → `FilaEmMemoria` (`JobQueue` **in-memory**, FIFO, um job
+  por vez; job que falha vira `FALHOU` sem derrubar a fila). Ponto de costura com a F6:
+  `onProgressoDe(jobId)` devolve um `OnProgresso` que alimenta o `progresso()` agregado.
+- **Testes** (`test/`): `processar-linha`, `processar-job` (idempotência, falha isolada, ordem
+  das escritas, `garantirColunas`, progresso), `fila-em-memoria`; fakes em `test/helpers/fakes.ts`
+  (Sheets/Fetcher/Extractor) — **sem libs externas e sem dados reais**.
+
+**Costura para a F6** (referência):
+```ts
+const fila = new FilaEmMemoria();
+fila.processar((job) => processarJob(job, deps, { onProgresso: fila.onProgressoDe(job.id) }));
+await fila.enfileirar(job);
+// ... fila.progresso(job.id) -> ProgressoJob (devolutiva na tela)
+```
 
 ---
 
@@ -210,9 +255,9 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- Nenhum worktree de feature aberto após o merge da F1. O da F0
-  (`../analise-notas-fiscais-worktrees/fundacao`) e o da F1
-  (`../analise-notas-fiscais-worktrees/parsing`) foram removidos após o merge dos PRs #1 e #3.
+- Nenhum worktree de feature aberto. Já removidos após o merge: F0 (`fundacao`, PR #1),
+  F5 (`pipeline-queue`, PR #4), F3 (`auth-sheets`, PR #5) e F1 (`parsing`, PR #3 — removido
+  logo após este merge).
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

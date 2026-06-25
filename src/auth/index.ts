@@ -15,3 +15,13 @@ export interface GoogleAuthProvider {
   /** Renova o access token a partir do refresh token. */
   refresh(refreshToken: string): Promise<TokensGoogle>;
 }
+
+// Implementação (fatia F3).
+export {
+  GoogleAuthProviderImpl,
+  criarGoogleAuthProvider,
+  criarOAuthClient,
+  mapearCredenciais,
+  ESCOPO_SHEETS,
+  type ConfigOAuth,
+} from './google-auth-provider.js';

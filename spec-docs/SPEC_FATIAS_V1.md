@@ -2,9 +2,10 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação) MERGEADA** (PR #1, na `main`). **F3 (Auth +
-> Sheets) pronta** na branch `feat/auth-sheets` (PR aberto). F1 em andamento em paralelo
-> (`feat/parsing`). F2/F4/F5/F6 a fazer. Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0 (Fundação) MERGEADA** (PR #1) e **F5 (Pipeline + Queue)
+> MERGEADA** (PR #4), ambas na `main`. **F3 (Auth + Sheets) pronta** na branch
+> `feat/auth-sheets` (PR #5, em merge). F1 em andamento em paralelo (`feat/parsing`).
+> F2/F4/F6 a fazer. Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -21,9 +22,9 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ⬜ a fazer | F0 | — |
 | F2 | **Extract** (cascata XML → pdf-parse → OCR) | ⬜ a fazer | F0, F1 | — |
-| F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ pronta (PR aberto) | F0 | feat/auth-sheets |
+| F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ⬜ a fazer | F0 | — |
-| F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ⬜ a fazer | F0, F2, F3, F4 | — |
+| F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
 | F6 | **API + Web** (endpoints + tela de login/link/progresso = devolutiva) | ⬜ a fazer | F0, F5 | — |
 
 **Critério de "verde" (gate de pronto)** por fatia: `npm run typecheck` sem erros (a F0
@@ -160,17 +161,42 @@ Implementa `src/download`.
 
 ---
 
-## F5 — Pipeline + Queue ⬜ (depende de F2/F3/F4)
+## F5 — Pipeline + Queue 🟦 (PR aberto · branch `feat/pipeline-queue`)
 
 **O quê:** orquestração — `ProcessarLinha`/`ProcessarJob` + `JobQueue`. Junta sheets+download+
-extract atrás das interfaces. Implementa `src/pipeline` e `src/queue`.
+extract atrás das interfaces. Implementa `src/pipeline` e `src/queue`. **Não depende das
+implementações concretas de F2/F3/F4** — só dos contratos da F0 (por isso pôde ser feita antes
+delas, com fakes nos testes).
 
-**Onde mexer (planejado):**
-- `src/pipeline/` — por linha: marca `PROCESSANDO`, baixa → extrai → valida → escreve;
-  **idempotência** (pula `CONCLUIDO`), **falha isolada** (erro vira `LinhaResultado` ERRO, não
-  derruba o lote), concorrência limitada, escrita em lote. `onProgresso` alimenta a devolutiva.
-- `src/queue/` — fila + progresso. v1 pode ser **in-memory** atrás de `JobQueue` (decidir; se
-  for BullMQ/Redis, registrar em CLAUDE.md §11). Testes de idempotência/falha isolada.
+**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/pipeline-queue`,
+branch `feat/pipeline-queue` — typecheck limpo, 18/18 testes, build ok):
+- `src/pipeline/`:
+  - `processar-linha.ts` → `processarLinha`: baixa → extrai → **valida (estrutural)** → devolve
+    `LinhaResultado`. **Nunca lança** — qualquer erro vira status `ERRO` com mensagem acionável
+    (falha isolada, CLAUDE.md §3).
+  - `processar-job.ts` → `processarJob`: lê a planilha, `garantirColunas(Object.values(COLUNAS))`,
+    **idempotência** (pula `CONCLUIDO`), marca `PROCESSANDO` **em lote antes** de processar
+    (anti-corrida), processa com **concorrência limitada** (`CONCORRENCIA_PADRAO=4`), grava o
+    resultado final em lote (`escreverResultados`, nunca célula a célula). Emite `onProgresso`
+    por linha (status inicial e final; inclui as já concluídas no total).
+  - `validacao.ts` → `validarNotaExtraida` (estrutural: CNPJ 14 díg., data ISO, valor inteiro
+    ≥0). **Pura e local de propósito** — a F5 não importa as funções concretas da F1 (que evolui
+    em paralelo); a validação fiscal forte é da F1/F2 (via `avisos`/`confianca`).
+  - `concorrencia.ts` → `processarComConcorrencia` (pool ordenado) + `agora()` (ISO 8601).
+- `src/queue/` → `fila-em-memoria.ts` → `FilaEmMemoria` (`JobQueue` **in-memory**, FIFO, um job
+  por vez; job que falha vira `FALHOU` sem derrubar a fila). Ponto de costura com a F6:
+  `onProgressoDe(jobId)` devolve um `OnProgresso` que alimenta o `progresso()` agregado.
+- **Testes** (`test/`): `processar-linha`, `processar-job` (idempotência, falha isolada, ordem
+  das escritas, `garantirColunas`, progresso), `fila-em-memoria`; fakes em `test/helpers/fakes.ts`
+  (Sheets/Fetcher/Extractor) — **sem libs externas e sem dados reais**.
+
+**Costura para a F6** (referência):
+```ts
+const fila = new FilaEmMemoria();
+fila.processar((job) => processarJob(job, deps, { onProgresso: fila.onProgressoDe(job.id) }));
+await fila.enfileirar(job);
+// ... fila.progresso(job.id) -> ProgressoJob (devolutiva na tela)
+```
 
 ---
 
@@ -218,11 +244,11 @@ git stash pop                 # reaplica; resolve conflitos se houver
 
 ## Estado dos worktrees (no momento deste doc)
 
-- `../analise-notas-fiscais-worktrees/auth-sheets` (branch `feat/auth-sheets`) — **F3**, PR
-  aberto; remover após o merge.
+- `../analise-notas-fiscais-worktrees/auth-sheets` (branch `feat/auth-sheets`) — **F3**, em
+  merge (PR #5); remover logo após.
 - `../analise-notas-fiscais-worktrees/parsing` (branch `feat/parsing`) — **F1**, em andamento
   por outro chat em paralelo.
-- O da F0 (`../analise-notas-fiscais-worktrees/fundacao`) foi removido após o merge do PR #1.
+- Worktrees já removidos após o merge: F0 (`fundacao`, PR #1) e F5 (`pipeline-queue`, PR #4).
 
 > Ciclo de vida: enquanto as fatias vão sendo entregues, este spec é a bússola entre
 > sessões/PRs. Quando o v1 fechar, ele pode ser removido ou virar doc permanente em `docs/`.

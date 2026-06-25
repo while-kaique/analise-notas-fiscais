@@ -36,3 +36,9 @@ export type ProcessarJob = (
   deps: DependenciasPipeline,
   opts?: { concorrencia?: number; onProgresso?: OnProgresso },
 ) => Promise<void>;
+
+// --- Implementação (fatia F5) -------------------------------------------------
+export { processarLinha } from './processar-linha.js';
+export { processarJob, CONCORRENCIA_PADRAO } from './processar-job.js';
+export { processarComConcorrencia } from './concorrencia.js';
+export { validarNotaExtraida } from './validacao.js';

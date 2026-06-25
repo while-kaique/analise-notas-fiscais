@@ -51,7 +51,15 @@ export type {
   ProcessarJob,
   OnProgresso,
 } from './pipeline/index.js';
+export {
+  processarLinha,
+  processarJob,
+  processarComConcorrencia,
+  validarNotaExtraida,
+  CONCORRENCIA_PADRAO,
+} from './pipeline/index.js';
 export type { JobQueue, JobHandler } from './queue/index.js';
+export { FilaEmMemoria } from './queue/index.js';
 export {
   loadConfig,
   type Config,

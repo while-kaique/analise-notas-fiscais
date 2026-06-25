@@ -162,7 +162,7 @@ fatia, marque-a aqui (PR + estado).
 | **F2 — Extract** | `NotaExtractor` cascata XML → pdf-parse → OCR (`OcrProvider`/Tesseract `por`) | F0, F1 | ⬜ A fazer |
 | **F3 — Auth + Sheets** | `GoogleAuthProvider` (OAuth), `SheetsClient` (ler/escrever em lote por cabeçalho) | F0 | ⬜ A fazer |
 | **F4 — Download** | `FileFetcher` com SSRF guard, limites, cache por hash | F0 | ⬜ A fazer |
-| **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | ⬜ A fazer |
+| **F5 — Pipeline + Queue** | `ProcessarLinha`/`ProcessarJob` (idempotência, falha isolada), `JobQueue` | F0 (F2/F3/F4 via interface) | 🟦 PR aberto (`feat/pipeline-queue`) |
 | **F6 — API + Web** | endpoints HTTP + tela de login/link/progresso (a devolutiva) | F0, F5 | ⬜ A fazer |
 
 **Ordem sugerida:** mergear F0 → atacar **F1** e **F3/F4** em paralelo (não dependem entre
@@ -190,3 +190,14 @@ F0). Registre a escolha em §11 ao implementar.
   paralelo sem conflito no diretório principal. Todos os worktrees vivem dentro da pasta
   irmã `../analise-notas-fiscais-worktrees/` (uma subpasta por feature), para não poluir o
   diretório pai.
+- **2026-06-25 (F5)** — **Fila in-memory no v1** (`FilaEmMemoria`), atrás do contrato
+  `JobQueue`. Motivo: o v1 não precisa de infra (Redis) e a interface permite migrar para
+  BullMQ/Redis depois sem tocar no pipeline/API (CLAUDE.md §2). FIFO, um job por vez; job que
+  falha vira `FALHOU` sem derrubar a fila. **Nenhuma dependência externa nova** foi adicionada
+  na F5 (orquestração é puro TS sobre os contratos da F0).
+- **2026-06-25 (F5)** — **Validação no pipeline é só estrutural** (`validarNotaExtraida`:
+  CNPJ 14 díg., data ISO, valor inteiro ≥0) e fica **local/pura** em `src/pipeline/`. Motivo:
+  não acoplar a F5 às funções concretas da F1 (que evolui em paralelo) — só aos contratos da
+  F0. A validação fiscal forte (DV de CNPJ/CPF, plausibilidade) é responsabilidade da F1/F2,
+  sinalizada via `NotaExtraida.avisos`/`confianca`. **Concorrência padrão de linhas = 4**
+  (`CONCORRENCIA_PADRAO`, sobrescrevível por `opts.concorrencia`).

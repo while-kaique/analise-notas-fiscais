@@ -10,10 +10,12 @@ export interface ConfigGoogleOAuth {
 }
 
 export interface ConfigOcr {
-  /** "tesseract" | "cloud-vision" | "textract" */
-  provider: string;
-  /** Idiomas do Tesseract (ex.: "por", "por+eng"). */
-  langs: string;
+  /** URL do Cloudflare OCR Worker (PDF → texto, com OCR server-side). */
+  workerUrl: string;
+  /** Token Bearer do OCR Worker. Vem de `OCR_WORKER_TOKEN` — nunca commitar. */
+  workerToken: string;
+  /** Timeout da chamada ao worker, em ms. */
+  timeoutMs: number;
 }
 
 export interface ConfigLimites {
@@ -85,8 +87,9 @@ export function loadConfig(env: Env = process.env): Config {
     logLevel: lerTexto(env, 'LOG_LEVEL', 'info'),
     google,
     ocr: {
-      provider: lerTexto(env, 'OCR_PROVIDER', 'tesseract'),
-      langs: lerTexto(env, 'OCR_LANGS', 'por'),
+      workerUrl: lerTexto(env, 'OCR_WORKER_URL', ''),
+      workerToken: lerTexto(env, 'OCR_WORKER_TOKEN', ''),
+      timeoutMs: lerNumero(env, 'OCR_WORKER_TIMEOUT_MS', 60000),
     },
     databaseUrl: lerTexto(env, 'DATABASE_URL', ''),
     ...(redisUrl && redisUrl.trim() !== '' ? { redisUrl } : {}),

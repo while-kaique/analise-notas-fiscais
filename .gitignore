@@ -1,0 +1,44 @@
+# Dependências
+node_modules/
+.pnp/
+.pnp.js
+
+# Build / saída
+dist/
+build/
+*.tsbuildinfo
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+!.env.example
+# Credenciais do Google (NUNCA commitar)
+credentials.json
+service-account*.json
+token.json
+*.pem
+
+# Arquivos temporários do pipeline (PDFs baixados, imagens de OCR)
+tmp/
+.cache/
+downloads/
+*.pdf
+*.png.ocr
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Cobertura de testes
+coverage/
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

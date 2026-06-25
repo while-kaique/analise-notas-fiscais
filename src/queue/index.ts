@@ -17,3 +17,6 @@ export interface JobQueue {
   /** Progresso agregado de um job, para a devolutiva na tela. */
   progresso(jobId: string): Promise<ProgressoJob | undefined>;
 }
+
+// --- Implementação (fatia F5) -------------------------------------------------
+export { FilaEmMemoria } from './fila-em-memoria.js';

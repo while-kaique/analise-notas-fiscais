@@ -2,10 +2,10 @@
 
 > **Documento vivo.** Decisões fechadas com o usuário em 2026-06-25. Mantido em
 > `spec-docs/` (versionado no repo).
-> **Status global (2026-06-25): F0 (Fundação), F1 (Parsing/validação), F3 (Auth + Sheets),
-> F4 (Download) e F5 (Pipeline + Queue) MERGEADAS** (PRs #1, #3, #5, #6 e #4, na `main`);
-> **F2 (Extract) com PR #8 aberto** (branch `feat/extract`). **F6 (API + Web)** ainda a fazer.
-> Sem deploy ainda (projeto em construção).
+> **Status global (2026-06-25): F0, F1, F2 (Extract), F3, F4 e F5 MERGEADAS** (PRs #1, #3,
+> #8, #5, #6 e #4, na `main`); **F6 (API + Web)** ainda a fazer. A extração de PDF da F2 foi
+> revista para usar o **Cloudflare OCR Worker** (PR `feat/ocr-worker` — substitui o
+> pdf-parse/Tesseract/pdfjs locais). Sem deploy ainda (projeto em construção).
 
 ## Visão geral
 
@@ -21,7 +21,7 @@ Claude ao mesmo tempo). Cada fatia é reconciliada com o `main` da vez antes do 
 |---|-------|--------|-----------|----|
 | F0 | **Fundação** (tsconfig strict, tipos, interfaces, `loadConfig`) | ✅ mergeada | — | #1 |
 | F1 | **Parsing/validação** (CNPJ/CPF DV, valor→centavos, data→ISO) | ✅ mergeada | F0 | #3 |
-| F2 | **Extract** (cascata XML → pdf-parse → OCR) | 🟦 PR aberto | F0, F1 | #8 |
+| F2 | **Extract** (cascata XML → OCR Worker) | ✅ mergeada | F0, F1 | #8 |
 | F3 | **Auth + Sheets** (OAuth Google, ler/escrever em lote por cabeçalho) | ✅ mergeada | F0 | #5 |
 | F4 | **Download** (`FileFetcher` + SSRF guard, limites, cache por hash) | ✅ mergeada | F0 | #6 |
 | F5 | **Pipeline + Queue** (orquestração por linha/job, idempotência) | ✅ mergeada | F0 (F2/F3/F4 via interface) | #4 |
@@ -115,42 +115,43 @@ de borda (CLAUDE.md §7). Implementa os contratos de `src/parsing/index.ts`.
 
 ---
 
-## F2 — Extract 🟦 (PR #8 aberto · branch `feat/extract`)
+## F2 — Extract ✅ (mergeada · PR #8) · PDF via OCR Worker (revisão `feat/ocr-worker`)
 
-**O quê:** `NotaExtractor` em cascata XML da NF-e → texto do PDF (`pdf-parse`) → OCR
-(`OcrProvider`/Tesseract `por`), da fonte mais confiável para a menos (CLAUDE.md §1). Consome
-os validadores da F1.
+**O quê:** `NotaExtractor` em cascata **XML da NF-e → Cloudflare OCR Worker** (PDF → texto,
+com OCR server-side), da fonte mais confiável para a menos (CLAUDE.md §1). Consome os
+validadores da F1.
 
-**Onde aterrissou** (worktree `../analise-notas-fiscais-worktrees/extract`, branch
-`feat/extract` — typecheck 0 erros, 90/90 testes [22 novos], build ok):
-- **`src/extract/`** (orquestração fina + bordas de I/O atrás de deps injetáveis):
+**Onde aterrissou** (PR #8 original em `feat/extract` + revisão da extração de PDF em
+`feat/ocr-worker` — typecheck 0 erros, 119 testes verdes, build ok):
+- **`src/extract/`** (orquestração fina + borda HTTP do worker, tudo injetável):
   - `nota-extractor.ts` → `NotaExtractorImpl`/`criarNotaExtractor`: a **cascata**. Detecta o
     tipo por `arquivo.tipo` + sniff (`%PDF`, `<?xml`/`<`). XML → `extrairCamposDeXml`; PDF →
-    camada de texto (`lerTextoPdf`, ≥20 chars úteis e algum campo aproveitável) e, se for
-    escaneado/sem texto, **OCR** (rasteriza as páginas + `OcrProvider`). **Nunca lança**:
-    falha no OCR cai para `PDF_TEXTO` com aviso (falha isolada, §3). Deps injetáveis em
-    `DependenciasExtractor` (`lerTextoPdf`/`rasterizar`/`ocr`/`langsOcr`/`minCaracteresTexto`).
+    `lerTextoPdf` (o OCR Worker). **Nunca lança**: falha/timeout/texto vazio do worker viram
+    `aviso` + baixa confiança (falha isolada, §3). `DependenciasExtractor` =
+    `{ lerTextoPdf?, ocrWorker? }` (injeta um fake nos testes, ou a config do worker).
+  - `ocr-worker.ts` → `criarLeitorPdf(config)`/`LeitorPdf`/`OcrWorkerConfig` (**borda HTTP**):
+    `POST <OCR_WORKER_URL>` com `Content-Type: application/pdf` + `Authorization: Bearer
+    <OCR_WORKER_TOKEN>` e os bytes do PDF; resposta `{ text? | content? }`. Timeout via
+    `AbortController` (default 60s). Token é **segredo** (vem do env, nunca do código).
   - `xml.ts` → `extrairCamposDeXml`: **puro**. Busca tags por nome (case-insensitive,
     preferindo a ocorrência mais externa) — robusto a NF-e/NFC-e/NFS-e e a `nfeProc` opcional.
     `fast-xml-parser` com `parseTagValue`/`parseAttributeValue` **desligados** (preserva zeros
     à esquerda de CNPJ e o formato do valor). `null` quando não é XML de nota → cascata segue.
-  - `texto.ts` → `extrairCamposDeTexto`: **puro/heurístico** (DANFE com texto **e** saída de
-    OCR). Chave de acesso (44 díg.) extraída e removida antes de buscar CNPJ; CNPJs com DV
-    válido em ordem (1º = emitente, 2º = destinatário; CPF como fallback de destinatário);
-    data e valor por rótulo, com fallback (1ª data / maior valor monetário).
+  - `texto.ts` → `extrairCamposDeTexto`: **puro/heurístico** sobre o texto do worker. Chave
+    de acesso (44 díg.) extraída e removida antes de buscar CNPJ; CNPJs com DV válido em ordem
+    (1º = emitente, 2º = destinatário; CPF como fallback); data e valor por rótulo, com
+    fallback (1ª data / maior valor monetário).
   - `montar.ts` → `montarNotaExtraida` + `CamposBrutos`/`PESO_FONTE`: **consome a F1**
-    (`validarCnpj`/`validarCpf`/`valorParaCentavos`/`normalizarData`) e monta `NotaExtraida`.
-    **Confiança** = peso da fonte (XML 1.0 · PDF_TEXTO 0.85 · OCR = confiança do motor) ×
-    fração dos 3 campos críticos (CNPJ/data/valor) válidos; campo ruim vira `aviso`.
-  - `pdf.ts` → `lerTextoPdf` (borda: `pdf-parse` via `createRequire` no subpath `lib/`);
-    `rasterizar.ts` → `rasterizarPdf`/`RasterizadorPdf` (borda: `pdfjs-dist` + `@napi-rs/canvas`,
-    import dinâmico, escala ~144 DPI, limite de páginas); `tesseract-ocr.ts` →
-    `TesseractOcrProvider`/`criarTesseractOcrProvider` (`por`, worker reusado, `encerrar()`).
-- **Deps novas:** `fast-xml-parser` `^4`, `pdf-parse` `^1`, `tesseract.js` `^5`, `pdfjs-dist`
-  `^4`, `@napi-rs/canvas` `^0.1` (ver CLAUDE.md §11 para o porquê de cada uma).
+    (`validarCnpj`/`validarCpf`/`valorParaCentavos`/`normalizarData`). **Confiança** = peso da
+    fonte (XML 1.0 · PDF_TEXTO 0.85) × fração dos 3 campos críticos (CNPJ/data/valor) válidos.
+- **Config:** `ConfigOcr` = `{ workerUrl, workerToken, timeoutMs }` (env `OCR_WORKER_URL`,
+  `OCR_WORKER_TOKEN`, `OCR_WORKER_TIMEOUT_MS`). O **token nunca é commitado** (`.env.example`
+  com placeholder; `.env` no `.gitignore`).
+- **Deps:** só `fast-xml-parser` `^4` (XML local). A revisão **removeu** `pdf-parse`,
+  `tesseract.js`, `pdfjs-dist` e `@napi-rs/canvas` — o OCR é todo do worker agora.
 - **Testes** (`test/`): `extract-xml`, `extract-texto`, `extract-montar`, `nota-extractor`
-  (cascata com fakes de `lerTextoPdf`/`rasterizar`/`ocr` — **sem libs externas nem PDF/dados
-  reais**). Vetores de CNPJ/CPF inline e anonimizados (sem `test/fixtures/`).
+  (cascata com fake de `lerTextoPdf`), `ocr-worker` (cliente com `fetch` fake) — **sem libs
+  externas nem PDF/dados reais**. Vetores de CNPJ/CPF inline e anonimizados.
 
 ---
 

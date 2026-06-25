@@ -53,22 +53,19 @@ export type {
   OcrProvider,
   ResultadoOcr,
 } from './extract/index.js';
-// F2 — implementação de extract (cascata XML → texto do PDF → OCR).
+// F2 — implementação de extract (cascata XML → Cloudflare OCR Worker).
 export {
   NotaExtractorImpl,
   criarNotaExtractor,
-  TesseractOcrProvider,
-  criarTesseractOcrProvider,
   extrairCamposDeXml,
   extrairCamposDeTexto,
   montarNotaExtraida,
   PESO_FONTE,
-  lerTextoPdf,
-  rasterizarPdf,
+  criarLeitorPdf,
   type DependenciasExtractor,
   type CamposBrutos,
-  type RasterizadorPdf,
-  type OpcoesRaster,
+  type OcrWorkerConfig,
+  type LeitorPdf,
 } from './extract/index.js';
 export {
   validarCnpj,

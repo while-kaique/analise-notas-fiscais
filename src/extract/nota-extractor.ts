@@ -1,43 +1,40 @@
 /**
  * `NotaExtractor` concreto (F2): a **cascata** da fonte mais confiável para a
  * menos (CLAUDE.md §1):
- *   1. XML da NF-e        → `extrairCamposDeXml`
- *   2. Texto do PDF       → `lerTextoPdf` (camada de texto) + heurísticas
- *   3. OCR                → rasteriza o PDF e roda o `OcrProvider`
+ *   1. XML da NF-e   → `extrairCamposDeXml`
+ *   2. PDF           → Cloudflare **OCR Worker** (texto + OCR server-side)
  *
- * As dependências de I/O (texto do PDF, rasterização, motor de OCR) são
- * **injetáveis** — o orquestrador em si é fino e testável com fakes, e as libs
- * pesadas ficam nas bordas (CLAUDE.md §3/§7). `extrair` **nunca lança**: qualquer
- * falha vira uma `NotaExtraida` de baixa confiança com `avisos`.
+ * A leitura do PDF é **injetável** (`lerTextoPdf`) — o orquestrador é fino e
+ * testável com fakes, e o cliente HTTP do worker fica na borda (`ocr-worker.ts`).
+ * `extrair` **nunca lança**: qualquer falha vira uma `NotaExtraida` de baixa
+ * confiança com `avisos` (falha isolada, CLAUDE.md §3).
  */
 import type { ArquivoBaixado, NotaExtraida } from '../types/index.js';
-import type { NotaExtractor, OcrProvider } from './index.js';
+import type { NotaExtractor } from './index.js';
 import { extrairCamposDeXml } from './xml.js';
 import { extrairCamposDeTexto } from './texto.js';
 import { montarNotaExtraida, type CamposBrutos } from './montar.js';
-import { lerTextoPdf as lerTextoPdfPadrao } from './pdf.js';
-import { rasterizarPdf as rasterizarPdfPadrao, type RasterizadorPdf } from './rasterizar.js';
-import { criarTesseractOcrProvider } from './tesseract-ocr.js';
+import { criarLeitorPdf, type LeitorPdf, type OcrWorkerConfig } from './ocr-worker.js';
 
-/** Dependências injetáveis do extrator. Tudo tem default de produção. */
+/** Dependências injetáveis do extrator. */
 export interface DependenciasExtractor {
-  /** Lê a camada de texto do PDF. Default: `pdf-parse`. */
-  lerTextoPdf?: (bytes: Uint8Array) => Promise<string>;
-  /** Rasteriza o PDF em imagens para o OCR. Default: `pdfjs` + canvas. */
-  rasterizar?: RasterizadorPdf;
-  /** Motor de OCR. Default: Tesseract (`por`). */
-  ocr?: OcrProvider;
-  /** Idiomas passados ao OCR. Default `por`. */
-  langsOcr?: string;
   /**
-   * Mínimo de caracteres de texto "úteis" para confiar na camada de texto do PDF
-   * e **não** cair no OCR. Default 20.
+   * Lê o texto de um PDF. Se omitido, é construído a partir de `ocrWorker`.
+   * Útil para injetar um fake nos testes.
    */
-  minCaracteresTexto?: number;
+  lerTextoPdf?: LeitorPdf;
+  /** Config do Cloudflare OCR Worker (usada quando `lerTextoPdf` não é passado). */
+  ocrWorker?: OcrWorkerConfig;
 }
 
-const MIN_CARACTERES_PADRAO = 20;
 const decoder = new TextDecoder('utf-8');
+
+const leitorNaoConfigurado: LeitorPdf = () => {
+  throw new Error(
+    'Extração de PDF indisponível: configure o OCR Worker ' +
+      '(DependenciasExtractor.ocrWorker) ou injete lerTextoPdf.',
+  );
+};
 
 /** Decide o tipo efetivo do arquivo combinando `tipo` declarado e o conteúdo. */
 function detectarTipo(arquivo: ArquivoBaixado): 'xml' | 'pdf' | 'desconhecido' {
@@ -49,24 +46,18 @@ function detectarTipo(arquivo: ArquivoBaixado): 'xml' | 'pdf' | 'desconhecido' {
   return 'desconhecido';
 }
 
-/** `true` se os campos extraídos têm algo aproveitável (evita confiar em ruído). */
-function temCampoUtil(campos: CamposBrutos): boolean {
-  return Boolean(campos.cnpjEmitente ?? campos.valorTotal ?? campos.chaveAcesso);
+/** Acrescenta um aviso a um `NotaExtraida` sem mutar o original. */
+function comAviso(resultado: NotaExtraida, aviso: string): NotaExtraida {
+  return { ...resultado, avisos: [...resultado.avisos, aviso] };
 }
 
 export class NotaExtractorImpl implements NotaExtractor {
-  readonly #lerTextoPdf: (bytes: Uint8Array) => Promise<string>;
-  readonly #rasterizar: RasterizadorPdf;
-  readonly #ocr: OcrProvider;
-  readonly #langsOcr: string | undefined;
-  readonly #minCaracteres: number;
+  readonly #lerTextoPdf: LeitorPdf;
 
   constructor(deps: DependenciasExtractor = {}) {
-    this.#lerTextoPdf = deps.lerTextoPdf ?? lerTextoPdfPadrao;
-    this.#rasterizar = deps.rasterizar ?? rasterizarPdfPadrao;
-    this.#ocr = deps.ocr ?? criarTesseractOcrProvider(deps.langsOcr);
-    this.#langsOcr = deps.langsOcr;
-    this.#minCaracteres = deps.minCaracteresTexto ?? MIN_CARACTERES_PADRAO;
+    this.#lerTextoPdf =
+      deps.lerTextoPdf ??
+      (deps.ocrWorker ? criarLeitorPdf(deps.ocrWorker) : leitorNaoConfigurado);
   }
 
   async extrair(arquivo: ArquivoBaixado): Promise<NotaExtraida> {
@@ -75,10 +66,9 @@ export class NotaExtractorImpl implements NotaExtractor {
     if (tipo === 'xml') return this.#deXml(arquivo);
     if (tipo === 'pdf') return this.#dePdf(arquivo);
 
-    // Tipo desconhecido: tenta XML, depois trata como PDF (texto/OCR).
+    // Tipo desconhecido: tenta XML; se não render confiança, trata como PDF.
     const comoXml = this.#deXml(arquivo);
-    const xml = await comoXml;
-    if (xml.confianca > 0) return xml;
+    if (comoXml.confianca > 0) return comoXml;
     return this.#dePdf(arquivo);
   }
 
@@ -92,40 +82,20 @@ export class NotaExtractorImpl implements NotaExtractor {
   }
 
   async #dePdf(arquivo: ArquivoBaixado): Promise<NotaExtraida> {
-    // 1) Camada de texto.
-    const texto = await this.#lerTextoPdf(arquivo.bytes);
-    const camposTexto = extrairCamposDeTexto(texto);
-    if (texto.trim().length >= this.#minCaracteres && temCampoUtil(camposTexto)) {
-      return montarNotaExtraida(camposTexto, 'PDF_TEXTO');
-    }
-
-    // 2) OCR (PDF escaneado / sem texto útil).
+    let texto: string;
     try {
-      const paginas = await this.#rasterizar(arquivo.bytes);
-      if (paginas.length === 0) {
-        return this.#fallbackTexto(camposTexto, 'PDF sem páginas rasterizáveis para OCR.');
-      }
-      const partes: string[] = [];
-      let somaConfianca = 0;
-      const langs = this.#langsOcr;
-      for (const pagina of paginas) {
-        const r = await this.#ocr.reconhecer(pagina, langs !== undefined ? { langs } : undefined);
-        partes.push(r.texto);
-        somaConfianca += r.confianca;
-      }
-      const confiancaOcr = somaConfianca / paginas.length;
-      const campos = extrairCamposDeTexto(partes.join('\n'));
-      return montarNotaExtraida(campos, 'OCR', { confiancaFonte: confiancaOcr });
+      texto = await this.#lerTextoPdf(arquivo.bytes);
     } catch (erro) {
       const motivo = erro instanceof Error ? erro.message : String(erro);
-      return this.#fallbackTexto(camposTexto, `Falha no OCR: ${motivo}`);
+      const vazio = montarNotaExtraida({} as CamposBrutos, 'PDF_TEXTO', { confiancaFonte: 0 });
+      return comAviso(vazio, `Falha ao extrair texto do PDF: ${motivo}`);
     }
-  }
 
-  /** Quando o OCR não rola, devolve o que a camada de texto deu, com aviso. */
-  #fallbackTexto(camposTexto: CamposBrutos, aviso: string): NotaExtraida {
-    const resultado = montarNotaExtraida(camposTexto, 'PDF_TEXTO');
-    return { ...resultado, avisos: [...resultado.avisos, aviso] };
+    const resultado = montarNotaExtraida(extrairCamposDeTexto(texto), 'PDF_TEXTO');
+    if (texto.trim() === '') {
+      return comAviso(resultado, 'OCR Worker retornou texto vazio.');
+    }
+    return resultado;
   }
 }
 

@@ -4,8 +4,8 @@
 > `spec-docs/`. Sucede o **[`SPEC_FATIAS_V1.md`](SPEC_FATIAS_V1.md)** (v1 **fechado** e que será
 > **substituído** — ver §1). Memória pareada de handoff: `conferencia-v2-spec-junho-2026`.
 >
-> **Status global (2026-06-26): C0–C4 mergeadas** (PRs #13 / #15 / #14 / #17 / #18); **falta C5
-> (pipeline) e C6 (API/Web).**
+> **Status global (2026-06-26): C0–C4 mergeadas** (PRs #13 / #15 / #14 / #17 / #18); **C5 (pipeline)
+> feita** (`feat/conferencia-pipeline`, em PR); **falta só C6 (API/Web + flip + remoção do v1).**
 > Origem:
 > 4 fluxos n8n em `fluxos_n8n/` (Gocase: Influs, Assessoria, Soma, Embaixador) portados para o
 > sistema, **melhores/mais rápidos**, e generalizados para outras marcas (Gobeaute) via IA de
@@ -36,10 +36,11 @@ embaixadores enviaram a NF correta, cruzando o **FORMULÁRIO** (NF + cupom) com 
 | `FileFetcherWorkers` + SSRF (`src/download/`) — vira **fallback** (caminho principal = Drive) | — |
 | F1 parsing puro (`validarCnpj/Cpf`, `valorParaCentavos`, `normalizarData`) — **reusado** | — |
 
-> **Sequenciamento da remoção (para o gate ficar verde a cada PR):** **C0 é aditiva** (não remove
-> nada de v1). A remoção do v1 genérico acontece **quando substituído**: o domínio puro
-> (`pipeline`/`queue` genéricos, `montar/texto/xml`) sai em **C5**; o wiring de API/web genérico em
-> **C6**. O **estado final** não tem fluxo genérico. Código removido fica no histórico do git.
+> **Sequenciamento da remoção (para o gate ficar verde a cada PR — strangler-fig):** **C0–C5 são
+> aditivas** (constroem o produto novo ao lado, sem remover nada de v1). **TODA a remoção** do v1
+> genérico (domínio `pipeline`/`queue`/`montar/texto/xml` **e** o wiring de API/web + login) acontece
+> na **C6**, junto com o "flip" que religa a API ao pipeline novo — assim nenhum PR intermediário
+> quebra o build. O **estado final** não tem fluxo genérico. Código removido fica no histórico do git.
 
 ---
 
@@ -302,8 +303,8 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 | **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | ✅ PR #14 mergeada — `src/conferencia/mapeamento/` |
 | **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNfBrutos`; cache por hash. | C0 | ✅ PR #17 mergeada — `src/conferencia/extracao/` + `test/conferencia-extracao.test.ts` |
 | **C4** | **Drive + identidade de serviço** | credencial **`rpa_ia` (refresh token → access token)** com escopos `spreadsheets`+`drive.readonly`; `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ✅ PR #18 mergeada — `src/conferencia/drive/` |
-| **C5** | **Pipeline + job/cron + remoção do domínio v1** | ler base+form, normalizar/filtrar/merge, processar cupom (C4→C3→C1), depois Soma; idempotência/lote. **Remove `pipeline`/`queue`/`montar/texto/xml` genéricos.** | C0 (C1–C4 via interface) | ⬜ |
-| **C6** | **API + Web + flip do produto** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard. **Remove o wiring v1 genérico e o login Google da UI** (acesso via GoDeploy `authenticated`). | C0, C5 | ⬜ |
+| **C5** | **Pipeline de conferência (aditivo)** | ler base+form, normalizar/filtrar/**merge por cupom**, processar cupom (C4→C3→C1), depois Soma; idempotência pela coluna de status; lote (`batchLimit`). `LeitorPlanilha` REST. **Não remove nada** (strangler-fig). | C0 (C1–C4 via interface) | ✅ feito (`feat/conferencia-pipeline`) |
+| **C6** | **API + Web + flip + remoção do v1** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard, **cron** que chama `processarPerfil` em lote. **Remove TODO o v1 genérico** (domínio + wiring API/web + login Google na UI; acesso via GoDeploy `authenticated`). | C0, C5 | ⬜ |
 
 **Ordem:** C0 → (C1, C2, C3, C4 em paralelo) → C5 → C6.
 **Gate por fatia:** `npm run typecheck` 0 erros · `npm test` verde · `npm run build` ok.
@@ -315,6 +316,21 @@ refresh→access com cache + `urlConsentimentoServico` + `ESCOPOS_SERVICO`), `ba
 hash, `detectarTipo`; `fallback` p/ link não-Drive), `comum.ts` (helpers). Exporta pelo sub-barril
 `drive/index.ts` (não toca o barril top-level p/ não colidir com C1–C3). **Pendência p/ rodar de
 verdade:** publicar consent screen + gerar `GOOGLE_OAUTH_REFRESH_TOKEN` da `rpa_ia` (secret).
+
+**Onde aterrissou — C5** (`feat/conferencia-pipeline`, gate verde · 33 testes novos):
+`src/conferencia/pipeline/` + `src/conferencia/sheets/`:
+- `merge.ts` (puro) — `COLUNAS_BASE`, `normalizarCupom`, `indexarBase` (esperado do mês + histórico
+  por cupom em **1 leitura**) e `montarLinhas` (filtros, exclusões, dedup por cupom, idempotência
+  pela coluna de status, cruzamento form×base) = §4.1.
+- `escrita.ts` (puro) — `Resultado→EscritaCelula` pelos nomes configurados; reais pt-BR + data BR.
+- `processar-frente.ts` — resolve mapa (C2+cache) → lê base+form → processa lote (C4 baixa → C3
+  extrai → C1 valida/retroativo) → grava em lote; **falha isolada** por cupom (vira `NAO_LEGIVEL`+erro).
+- `processar-soma.ts` — reconciliação influ+assessoria (§4.6). `processar-perfil.ts` — ordem das
+  frentes + `refDoFormUrl`.
+- `sheets/leitor-planilha-rest.ts` — `LeitorPlanilha` sobre Sheets REST (token provider = rpa_ia da
+  C4; resolve aba por nome **ou gid**; escreve em lote `USER_ENTERED`).
+- Sub-barril `pipeline/index.ts` (não toca o top-level). **Persistência de job/progresso (`conf_jobs`/
+  `conf_linhas`) e o cron ficam na C6** (a idempotência da C5 já é pela planilha).
 
 ---
 

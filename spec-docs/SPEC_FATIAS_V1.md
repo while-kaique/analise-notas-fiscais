@@ -309,8 +309,22 @@ Workers-native); o restante migra as fatias Node existentes.
 - [x] `NotaExtractor` (F2): `pdf-parse`/Tesseract não rodam no Workers → **Cloudflare OCR Worker**
       (PDF→texto/OCR via HTTP, F2 revisão #9). Ligado no Worker via `montarDeps` (`src/api/deps.ts`),
       lendo `env.OCR_WORKER_URL`/`OCR_WORKER_TOKEN` (segredos por `setAppSecret`).
-- [ ] Build/bundle do Worker no GoDeploy (entrypoint + assets + `env.DB`) e segredos por `setAppSecret`.
-- [ ] Cron de produção (`createCronJob`) com cadência/tamanho de lote afinados pela quota do Sheets.
+- [x] Build/bundle do Worker no GoDeploy — **deployado** (app `687dbb00`, `https://687dbb00.devgogroup.com/`,
+      visibilidade `authenticated`). Entrypoint `src/api/worker.ts`; assets `index.html`/`app.js`/`styles.css`
+      (SPA fallback). Upload com `package.json` **mínimo** (só `fast-xml-parser`): o grafo do Worker **não**
+      puxa `googleapis`/`node:*` (imports do barril `sheets` são `type`-only; `deps.ts` importa
+      `file-fetcher-workers` direto — PR #11). Bundle do edge compila limpo.
+- [~] Cron de produção: a rota `POST /tasks/processar` está deployada e responde 200; o handler loga
+      falhas de `avancarJobs` (não vira mais `CronError` opaco). **Pendência:** o cron job criado nos
+      testes iniciais (`wfqzyqwvzwpy`, `* * * * *`) está **travado na plataforma** — falha com
+      `CronError: internal error` de forma **idêntica e independente do código do Worker** (mesmo padrão
+      em 5 versões; dispara a cada 30s com retry). Remédio: **deletar e recriar** o cron agora que a rota
+      existe (precisa de autorização explícita — `deleteCronJob`/`createCronJob`). Cadência sugerida:
+      `*/1 * * * *` ou `*/2 * * * *`; lote `LOTE_PADRAO=10` afinável pela quota do Sheets.
+- [ ] **Verificar segredos** (`setAppSecret`, não legíveis via MCP): `GOOGLE_OAUTH_CLIENT_ID/SECRET`,
+      `GOOGLE_OAUTH_REDIRECT_URI` (= `https://687dbb00.devgogroup.com/auth/google/callback`),
+      `SESSION_SECRET`, `OCR_WORKER_URL`/`OCR_WORKER_TOKEN`, e (se a rota do cron for protegida)
+      `GODEPLOY_CRON_KEY`. O app reporta `secretsVersion 4`, mas os valores não foram confirmados nesta sessão.
 
 ---
 

@@ -193,8 +193,12 @@ já no F0). Registre a escolha em §11 ao implementar.
   cabeçalho→colunas** — segredos `LLM_BASE_URL`/`API_PROXY_TOKEN`/`LLM_MODEL`/`LLM_PROVIDER`.
   (c) **Status em 3 níveis**: Aprovado (exato) · Parcial (≤ R$30, `margemParcialCentavos`) · Não
   Aprovado. (d) **Perfis por marca** (base fixa; 1 link de formulário por mês, salvo no banco).
-  (e) Download das NFs via **Google Drive** (escopo OAuth novo `drive.readonly`). Gobeaute =
-  esqueleto/task futura. **Nenhuma dependência externa nova** (IA e Drive via `fetch`).
+  (e) Download das NFs via **Google Drive** (escopo `drive.readonly`). (f) **Identidade de serviço
+  fixa**: o cron acessa Drive/Sheets como **`rpa_ia@gocase.com` via refresh token**
+  (`GOOGLE_OAUTH_REFRESH_TOKEN`, consentimento offline 1x, tela de consentimento publicada) — **não**
+  OAuth por usuário nem Service Account; reusa o acesso que o n8n já tem. (g) **Sem login Google na
+  UI**: acesso gated pelo GoDeploy (`authenticated`); supera a decisão original "OAuth do usuário".
+  Gobeaute = esqueleto/task futura. **Nenhuma dependência externa nova** (IA e Drive via `fetch`).
 - **2026-06-25** — Stack base definida: Node.js + TypeScript, Google Sheets como fonte de
   planilha, Tesseract como OCR inicial (atrás de interface trocável). Pipeline por job
   assíncrono. _(planejamento detalhado pendente)_

@@ -116,6 +116,13 @@ A planilha é a interface principal com o usuário — trate-a como API pública
   - Crie o worktree a partir da `main` atualizada, com branch dedicada:
     `git worktree add ../analise-notas-fiscais-worktrees/<feature> -b feat/<feature> main`
   - Trabalhe, commite e abra o PR **de dentro** desse worktree.
+  - **DEFINIÇÃO DE PRONTO — atualizar o status da fatia no spec faz parte de terminar.**
+    Antes de pedir o merge, o **mesmo PR** DEVE marcar a fatia na tabela do roadmap
+    (`spec-docs/SPEC_CONFERENCIA_V2.md` §9, status global no topo e "onde aterrissou") como
+    `✅ PR #N mergeada` (ou o estado atual) — **não** deixe `em andamento`/`⬜` numa fatia
+    concluída. _(Erro real: a **C1** foi finalizada e mergeada sem atualizar o spec, que ficou
+    "🟦 em andamento"; outro chat teve de corrigir depois. Não repita: a fatia só está
+    "pronta" quando o spec reflete isso.)_
   - Ao terminar (PR mergeado), remova:
     `git worktree remove ../analise-notas-fiscais-worktrees/<feature>` e
     `git branch -d feat/<feature>`. Use `git worktree prune` se sobrar referência.

@@ -264,7 +264,7 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 | **C0** | **Fundação v2 (aditiva)** | tipos do domínio, interfaces de camada, **seed Gocase + esqueleto Gobeaute**, repo em memória, **DDL `env.DB`** (aditivo, não toca v1). | — | 🟦 em andamento |
 | **C1** | **Validação + Retroativo + Soma (puro)** | `classificarStatus` (3 níveis), `validarNfInicial`, `validarComRetroativo`, `reconciliarSoma`, `mesParaNumero`; reusa F1. **Muitos testes.** | C0 | ⬜ |
 | **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | ⬜ |
-| **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNf`; cache por hash. | C0 | ⬜ |
+| **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNfBrutos`; cache por hash. | C0 | 🟩 implementada (PR aberto) — `src/conferencia/extracao/` |
 | **C4** | **Download Google Drive** | escopo `drive.readonly` (Node + Workers); `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ⬜ |
 | **C5** | **Pipeline + job/cron + remoção do domínio v1** | ler base+form, normalizar/filtrar/merge, processar cupom (C4→C3→C1), depois Soma; idempotência/lote. **Remove `pipeline`/`queue`/`montar/texto/xml` genéricos.** | C0 (C1–C4 via interface) | ⬜ |
 | **C6** | **API + Web + flip do produto** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard. **Remove o wiring v1 genérico.** | C0, C5 | ⬜ |

@@ -195,6 +195,31 @@ já no F0). Registre a escolha em §11 ao implementar.
   Aprovado. (d) **Perfis por marca** (base fixa; 1 link de formulário por mês, salvo no banco).
   (e) Download das NFs via **Google Drive** (escopo OAuth novo `drive.readonly`). Gobeaute =
   esqueleto/task futura. **Nenhuma dependência externa nova** (IA e Drive via `fetch`).
+- **2026-06-26 (C3 — Extração de campos)** — implementada em `src/conferencia/extracao/`
+  (barril próprio, **fora** do `src/conferencia/index.ts` compartilhado, para não conflitar
+  com C1/C2/C4 em paralelo). Decisões da fatia:
+  - **`ClienteLlm`** (`cliente-llm.ts`): porte de `godocs-main/src/lib/llm.ts` só com `fetch`
+    (Workers-friendly), **config injetada** (`ConfigLlm`, nada de `process.env` no módulo;
+    o wiring por env fica na C5). Mantém o tratamento de `unsupported_parameter/value`
+    (`dropUnsupportedParam`: gpt-5 usa `max_completion_tokens` e rejeita `temperature` →
+    remove e retenta na hora), modo JSON, timeout por `AbortController` e retries de gateway.
+    **Não** portamos o fallback "OpenAI direto com chave dedicada" do godocs (resiliência
+    específica dele); endpoint único + `gatewayRetries`. **Nunca logamos conteúdo de mensagem**
+    (texto da NF = PII, §6).
+  - **`ExtratorCampos`** (`extrator-campos.ts`): prompt **verbatim do n8n** (spec §5.4) como
+    `system`, texto do OCR como `user`, `temperature: 0` (extração determinística — melhor que
+    o n8n, que não fixava) + modo JSON. Retorna **`CamposNfBrutos`** (cru), **não** `CamposNf`:
+    a normalização/validação (somenteDigitos, `valorParaCentavos`, DV de CNPJ) é da **C1**
+    (mesmo limite que a F5 manteve); campo ausente volta ausente (→ `NAO_LEGIVEL` na C1).
+    `parseCamposNf` tolera cercas ```json``` e texto ao redor; lança em conteúdo não-JSON
+    (o pipeline da C5 isola a linha — falha isolada §3).
+  - **Cache por hash** (`hash.ts`/`cache.ts`): `criarExtracaoNf` faz PDF→texto (**reusa**
+    `ocr-worker.ts` da F2)→campos com **cache por SHA-256 do arquivo** (Web Crypto, igual à F4),
+    evitando re-OCR e re-IA do mesmo PDF (§7). Cache atrás de interface (`CacheExtracao`): impl
+    em memória agora, `env.DB` possível na C5. Aceita `hashConhecido` (o `ArquivoBaixado` da F4
+    já traz o hash).
+  - **Segredos** no `.env.example` (placeholders): `LLM_BASE_URL`/`API_PROXY_TOKEN`/`LLM_API_KEY`/
+    `LLM_MODEL` (default `gpt-4.1-mini`, o do n8n)/`LLM_PROVIDER`. **Nenhuma dependência externa nova.**
 - **2026-06-25** — Stack base definida: Node.js + TypeScript, Google Sheets como fonte de
   planilha, Tesseract como OCR inicial (atrás de interface trocável). Pipeline por job
   assíncrono. _(planejamento detalhado pendente)_

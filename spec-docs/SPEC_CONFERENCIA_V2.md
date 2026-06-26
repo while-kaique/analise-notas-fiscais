@@ -4,8 +4,9 @@
 > `spec-docs/`. Sucede o **[`SPEC_FATIAS_V1.md`](SPEC_FATIAS_V1.md)** (v1 **fechado** e que será
 > **substituído** — ver §1). Memória pareada de handoff: `conferencia-v2-spec-junho-2026`.
 >
-> **Status global (2026-06-26): C0 mergeada** (PR #13); **C1 em andamento** (worktree
-> `feat/conferencia-validacao`). Origem:
+> **Status global (2026-06-26): C0, C1 e C2 mergeadas** (PRs #13 / #15 / #14); **C3 (extração)
+> e C4 (drive) em andamento** (worktrees `feat/conferencia-extracao` e `feat/conferencia-drive`).
+> Origem:
 > 4 fluxos n8n em `fluxos_n8n/` (Gocase: Influs, Assessoria, Soma, Embaixador) portados para o
 > sistema, **melhores/mais rápidos**, e generalizados para outras marcas (Gobeaute) via IA de
 > mapeamento de colunas.
@@ -297,8 +298,8 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 | # | Fatia | Escopo | Depende | Estado |
 |---|-------|--------|---------|--------|
 | **C0** | **Fundação v2 (aditiva)** | tipos do domínio, interfaces de camada, **seed Gocase + esqueleto Gobeaute**, repo em memória, **DDL `env.DB`** (aditivo, não toca v1). | — | ✅ PR #13 mergeada |
-| **C1** | **Validação + Retroativo + Soma (puro)** | `classificarStatus` (3 níveis), `validarNfInicial`, `validarComRetroativo`, `reconciliarSoma`, `mesParaNumero`; reusa F1. **Muitos testes.** | C0 | 🟦 em andamento (worktree `feat/conferencia-validacao`) — aterrissou em `src/conferencia/validacao/` + `test/conferencia-validacao.test.ts` |
-| **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | 🟩 PR #14 — `src/conferencia/mapeamento/` |
+| **C1** | **Validação + Retroativo + Soma (puro)** | `classificarStatus` (3 níveis), `validarNfInicial`, `validarComRetroativo`, `reconciliarSoma`, `mesParaNumero`; reusa F1. **Muitos testes.** | C0 | ✅ PR #15 mergeada — `src/conferencia/validacao/` + `test/conferencia-validacao.test.ts` |
+| **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | ✅ PR #14 mergeada — `src/conferencia/mapeamento/` |
 | **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNf`; cache por hash. | C0 | ⬜ |
 | **C4** | **Drive + identidade de serviço** | credencial **`rpa_ia` (refresh token → access token)** com escopos `spreadsheets`+`drive.readonly`; `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ⬜ |
 | **C5** | **Pipeline + job/cron + remoção do domínio v1** | ler base+form, normalizar/filtrar/merge, processar cupom (C4→C3→C1), depois Soma; idempotência/lote. **Remove `pipeline`/`queue`/`montar/texto/xml` genéricos.** | C0 (C1–C4 via interface) | ⬜ |

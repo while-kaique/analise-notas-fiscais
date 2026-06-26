@@ -116,6 +116,13 @@ A planilha é a interface principal com o usuário — trate-a como API pública
   - Crie o worktree a partir da `main` atualizada, com branch dedicada:
     `git worktree add ../analise-notas-fiscais-worktrees/<feature> -b feat/<feature> main`
   - Trabalhe, commite e abra o PR **de dentro** desse worktree.
+  - **DEFINIÇÃO DE PRONTO — atualizar o status da fatia no spec faz parte de terminar.**
+    Antes de pedir o merge, o **mesmo PR** DEVE marcar a fatia na tabela do roadmap
+    (`spec-docs/SPEC_CONFERENCIA_V2.md` §9, status global no topo e "onde aterrissou") como
+    `✅ PR #N mergeada` (ou o estado atual) — **não** deixe `em andamento`/`⬜` numa fatia
+    concluída. _(Erro real: a **C1** foi finalizada e mergeada sem atualizar o spec, que ficou
+    "🟦 em andamento"; outro chat teve de corrigir depois. Não repita: a fatia só está
+    "pronta" quando o spec reflete isso.)_
   - Ao terminar (PR mergeado), remova:
     `git worktree remove ../analise-notas-fiscais-worktrees/<feature>` e
     `git branch -d feat/<feature>`. Use `git worktree prune` se sobrar referência.
@@ -193,8 +200,12 @@ já no F0). Registre a escolha em §11 ao implementar.
   cabeçalho→colunas** — segredos `LLM_BASE_URL`/`API_PROXY_TOKEN`/`LLM_MODEL`/`LLM_PROVIDER`.
   (c) **Status em 3 níveis**: Aprovado (exato) · Parcial (≤ R$30, `margemParcialCentavos`) · Não
   Aprovado. (d) **Perfis por marca** (base fixa; 1 link de formulário por mês, salvo no banco).
-  (e) Download das NFs via **Google Drive** (escopo OAuth novo `drive.readonly`). Gobeaute =
-  esqueleto/task futura. **Nenhuma dependência externa nova** (IA e Drive via `fetch`).
+  (e) Download das NFs via **Google Drive** (escopo `drive.readonly`). (f) **Identidade de serviço
+  fixa**: o cron acessa Drive/Sheets como **`rpa_ia@gocase.com` via refresh token**
+  (`GOOGLE_OAUTH_REFRESH_TOKEN`, consentimento offline 1x, tela de consentimento publicada) — **não**
+  OAuth por usuário nem Service Account; reusa o acesso que o n8n já tem. (g) **Sem login Google na
+  UI**: acesso gated pelo GoDeploy (`authenticated`); supera a decisão original "OAuth do usuário".
+  Gobeaute = esqueleto/task futura. **Nenhuma dependência externa nova** (IA e Drive via `fetch`).
 - **2026-06-26 (C3 — Extração de campos)** — implementada em `src/conferencia/extracao/`
   (barril próprio, **fora** do `src/conferencia/index.ts` compartilhado, para não conflitar
   com C1/C2/C4 em paralelo). Decisões da fatia:

@@ -76,3 +76,31 @@ export type {
   ResultadoRetroativo,
   EntradaSoma,
 } from './validacao/index.js';
+
+// Mapeamento de colunas por IA (C2 — spec §6): header→papéis, confiança, política e cache
+export {
+  LIMIAR_CONFIANCA_PADRAO,
+  PAPEIS_LINK_NF,
+  DESCRICOES_PAPEL,
+  descricaoPapel,
+  papeisSolicitados,
+  papeisCriticos,
+  papeisCriticosEntrada,
+  montarMensagensMapeamento,
+  parsearRespostaMapeamento,
+  coerenciaPapelColuna,
+  avaliarMapeamento,
+  MapeadorColunasIa,
+  resolverMapeamento,
+  cacheValido,
+} from './mapeamento/index.js';
+export type {
+  Coerencia,
+  AvaliacaoMapeamento,
+  PapelIncerto,
+  OpcoesPolitica,
+  OpcoesMapeador,
+  ResolucaoMapeamento,
+  DepsResolver,
+  CacheMapeamento,
+} from './mapeamento/index.js';

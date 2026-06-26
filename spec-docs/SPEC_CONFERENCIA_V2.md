@@ -231,6 +231,18 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
   têm confiança ≥ limiar; **só pausa** abaixo disso. Mapa **cacheado no perfil**; revalida no mês
   novo. Colunas de saída ausentes → **criar** (§4.5). Validações/regex por papel reusam F1.
 
+> **Onde aterrissou (C2 — `src/conferencia/mapeamento/`):** `MapeadorColunasIa` implementa o
+> contrato `MapeadorColunas` sobre o `ClienteLlm` (interface da C0; impl real do AI Proxy é a C3 —
+> aqui usamos um fake nos testes). Peças puras: `prompt.ts` (mensagens system+user, modo JSON),
+> `parse.ts` (parse tolerante: lê JSON cercado por texto, grampeia confiança a [0,1], casa cabeçalho
+> case-insensitive→canônico, descarta coluna inventada/papel não pedido), `heuristicas.ts`
+> (coerência papel↔coluna reusando `normalizarData` da F1 + regex de URL/cupom), `politica.ts`
+> (`avaliarMapeamento` → `precisaConfirmar`) e `resolver.ts` (cache por perfil + revalidação).
+> **Limiar padrão `0.8`** (`LIMIAR_CONFIANCA_PADRAO`, sobrescrevível). **Refino da política:** críticos
+> de **entrada** (cupom/link) ausentes **travam** (campo `faltando`); `status` é **saída** — se faltar
+> é **criada** no nome padrão (`saidaACriar`, não trava), só pausa se existir de forma ambígua. O
+> `cacheValido` também só exige os críticos de **entrada** (senão re-mapearia todo mês à toa).
+
 ---
 
 ## 7. Otimizações vs n8n ("melhor, mais rápido, otimizado")
@@ -263,7 +275,7 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 |---|-------|--------|---------|--------|
 | **C0** | **Fundação v2 (aditiva)** | tipos do domínio, interfaces de camada, **seed Gocase + esqueleto Gobeaute**, repo em memória, **DDL `env.DB`** (aditivo, não toca v1). | — | 🟦 em andamento |
 | **C1** | **Validação + Retroativo + Soma (puro)** | `classificarStatus` (3 níveis), `validarNfInicial`, `validarComRetroativo`, `reconciliarSoma`, `mesParaNumero`; reusa F1. **Muitos testes.** | C0 | ⬜ |
-| **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | ⬜ |
+| **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | 🟩 PR aberta — `src/conferencia/mapeamento/` |
 | **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNf`; cache por hash. | C0 | ⬜ |
 | **C4** | **Download Google Drive** | escopo `drive.readonly` (Node + Workers); `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ⬜ |
 | **C5** | **Pipeline + job/cron + remoção do domínio v1** | ler base+form, normalizar/filtrar/merge, processar cupom (C4→C3→C1), depois Soma; idempotência/lote. **Remove `pipeline`/`queue`/`montar/texto/xml` genéricos.** | C0 (C1–C4 via interface) | ⬜ |

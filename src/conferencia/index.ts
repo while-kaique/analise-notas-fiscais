@@ -57,3 +57,31 @@ export { RepositorioPerfisMemoria } from './perfis/repositorio-memoria.js';
 
 // Persistência (DDL aditivo do env.DB — wireado em C5/C6)
 export { DDL_CONFERENCIA, initSchemaConferencia } from './persistencia/schema.js';
+
+// Mapeamento de colunas por IA (C2 — spec §6): header→papéis, confiança, política e cache
+export {
+  LIMIAR_CONFIANCA_PADRAO,
+  PAPEIS_LINK_NF,
+  DESCRICOES_PAPEL,
+  descricaoPapel,
+  papeisSolicitados,
+  papeisCriticos,
+  papeisCriticosEntrada,
+  montarMensagensMapeamento,
+  parsearRespostaMapeamento,
+  coerenciaPapelColuna,
+  avaliarMapeamento,
+  MapeadorColunasIa,
+  resolverMapeamento,
+  cacheValido,
+} from './mapeamento/index.js';
+export type {
+  Coerencia,
+  AvaliacaoMapeamento,
+  PapelIncerto,
+  OpcoesPolitica,
+  OpcoesMapeador,
+  ResolucaoMapeamento,
+  DepsResolver,
+  CacheMapeamento,
+} from './mapeamento/index.js';

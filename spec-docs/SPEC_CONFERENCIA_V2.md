@@ -4,8 +4,8 @@
 > `spec-docs/`. Sucede o **[`SPEC_FATIAS_V1.md`](SPEC_FATIAS_V1.md)** (v1 **fechado** e que será
 > **substituído** — ver §1). Memória pareada de handoff: `conferencia-v2-spec-junho-2026`.
 >
-> **Status global (2026-06-26): C0, C1 e C2 mergeadas** (PRs #13 / #15 / #14); **C3 (extração)
-> e C4 (drive) em andamento** (worktrees `feat/conferencia-extracao` e `feat/conferencia-drive`).
+> **Status global (2026-06-26): C0, C1, C2 e C4 mergeadas** (PRs #13 / #15 / #14 / #18); **C3
+> (extração) em andamento** (worktree `feat/conferencia-extracao`). Falta C5 (pipeline) e C6 (API/Web).
 > Origem:
 > 4 fluxos n8n em `fluxos_n8n/` (Gocase: Influs, Assessoria, Soma, Embaixador) portados para o
 > sistema, **melhores/mais rápidos**, e generalizados para outras marcas (Gobeaute) via IA de

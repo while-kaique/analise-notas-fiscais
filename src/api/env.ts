@@ -26,23 +26,43 @@ export interface GoDeployDB {
   exec(sql: string, params?: readonly unknown[]): Promise<ResultadoExec>;
 }
 
-/** Variáveis de ambiente + bindings do Worker (segredos via `setAppSecret`). */
+/**
+ * Variáveis de ambiente + bindings do Worker (segredos via `setAppSecret`).
+ *
+ * No v2 (conferência por cupom) a identidade que acessa Drive/Sheets é a `rpa_ia`
+ * via **refresh token** (decisão 11): `GOOGLE_OAUTH_CLIENT_ID/SECRET` são do app OAuth
+ * da rpa_ia e `GOOGLE_OAUTH_REFRESH_TOKEN` é o consentimento offline. Não há login de
+ * usuário na UI (acesso gated pelo GoDeploy `authenticated`).
+ */
 export interface Env {
   DB: GoDeployDB;
+  // --- Identidade de serviço (rpa_ia) — Drive + Sheets (decisão 11) ---
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  /** Refresh token de longa duração da rpa_ia (consentimento offline 1x). */
+  GOOGLE_OAUTH_REFRESH_TOKEN?: string;
+  /** Redirect URI do app OAuth da rpa_ia (usado só p/ gerar a URL de consentimento). */
   GOOGLE_OAUTH_REDIRECT_URI?: string;
-  /** Segredo p/ assinar o cookie de sessão (HMAC). */
+  /** Segredo p/ assinar o cookie de sessão (HMAC) — opcional, controle interno. */
   SESSION_SECRET?: string;
-  /** Quantas linhas o cron processa por tick (default 10). */
-  PROCESS_BATCH_SIZE?: string;
+  /** Quantos cupons o cron processa por frente a cada tick (default 25). */
+  CONF_BATCH_SIZE?: string;
   /** Chave injetada pela plataforma p/ autenticar a chamada do cron (POST /tasks/*). */
   GODEPLOY_CRON_KEY?: string;
-  /** Cloudflare OCR Worker: extração de texto/OCR de PDF (F2). Secrets via `setAppSecret`. */
+  // --- OCR Worker: PDF → texto/OCR (F2) ---
   OCR_WORKER_URL?: string;
   OCR_WORKER_TOKEN?: string;
   /** Timeout (ms) da chamada ao OCR Worker. Default 60000. */
   OCR_WORKER_TIMEOUT_MS?: string;
+  // --- IA / AI Proxy (GoGroup, gateway OpenAI-compatível) — extração + mapeamento ---
+  LLM_BASE_URL?: string;
+  /** Token do proxy (modo gateway). */
+  API_PROXY_TOKEN?: string;
+  /** Chave direta (fallback quando não há LLM_BASE_URL). */
+  LLM_API_KEY?: string;
+  LLM_MODEL?: string;
+  /** `openai` (default) ou `anthropic`. */
+  LLM_PROVIDER?: string;
 }
 
 /** Contexto de execução do Worker (subset usado aqui). */

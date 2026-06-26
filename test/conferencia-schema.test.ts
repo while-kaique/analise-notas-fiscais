@@ -16,8 +16,8 @@ function fakeDb(): { db: GoDeployDB; execs: string[] } {
 }
 
 describe('schema da conferência (env.DB)', () => {
-  it('define as 4 tabelas com prefixo conf_ e IF NOT EXISTS (idempotente)', () => {
-    expect(DDL_CONFERENCIA).toHaveLength(4);
+  it('define as 5 tabelas com prefixo conf_ e IF NOT EXISTS (idempotente)', () => {
+    expect(DDL_CONFERENCIA).toHaveLength(5);
     for (const ddl of DDL_CONFERENCIA) {
       expect(ddl).toContain('CREATE TABLE IF NOT EXISTS conf_');
     }
@@ -26,9 +26,15 @@ describe('schema da conferência (env.DB)', () => {
   it('cria todas as tabelas esperadas', async () => {
     const { db, execs } = fakeDb();
     await initSchemaConferencia(db);
-    expect(execs).toHaveLength(4);
+    expect(execs).toHaveLength(5);
     const sql = execs.join('\n');
-    for (const tabela of ['conf_marcas', 'conf_perfis', 'conf_jobs', 'conf_linhas']) {
+    for (const tabela of [
+      'conf_marcas',
+      'conf_perfis',
+      'conf_mapas',
+      'conf_jobs',
+      'conf_linhas',
+    ]) {
       expect(sql).toContain(tabela);
     }
   });

@@ -1,5 +1,3 @@
-import type { ExtrairSpreadsheetId } from './index.js';
-
 /**
  * Extrai o ID do spreadsheet a partir de uma URL do Google Sheets.
  *
@@ -11,7 +9,7 @@ import type { ExtrairSpreadsheetId } from './index.js';
  * Retorna `null` quando não reconhece um ID — o chamador trata a URL como
  * não confiável (CLAUDE.md §6).
  */
-export const extrairSpreadsheetId: ExtrairSpreadsheetId = (url) => {
+export const extrairSpreadsheetId = (url: string): string | null => {
   if (typeof url !== 'string') return null;
   const bruto = url.trim();
   if (bruto === '') return null;

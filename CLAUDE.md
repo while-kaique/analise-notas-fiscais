@@ -185,12 +185,33 @@ já no F0). Registre a escolha em §11 ao implementar.
 > **➡️ v1 FECHADO (F0–F6 mergeadas). Trabalho ativo = v2 — Conferência de NF por Cupom.**
 > Migração dos 4 fluxos n8n (`fluxos_n8n/`): validar NFs por **cupom** cruzando FORMULÁRIO × BASE,
 > por marca, com retroativo e soma. **Substitui** o fluxo genérico do v1 (reusa a infra). Spec ativo:
-> **[`spec-docs/SPEC_CONFERENCIA_V2.md`](spec-docs/SPEC_CONFERENCIA_V2.md)** (fatias **C0–C6**; C0 feita).
+> **[`spec-docs/SPEC_CONFERENCIA_V2.md`](spec-docs/SPEC_CONFERENCIA_V2.md)** (fatias **C0–C6**:
+> C0–C5 mergeadas, **C6 — API/Web + flip + remoção do v1 — feita** em `feat/conferencia-api-web`, em PR).
+> v2 completo no código; falta só provisionar runtime (secrets da `rpa_ia` + cron no GoDeploy).
 > Memória: `conferencia-v2-spec-junho-2026`.
 
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-26 (C6 — API/Web + flip + remoção do v1)** — fecha o v2 no código. Decisões da fatia:
+  - **Worker stateless + cron** (CLAUDE.md §2/decisão GoDeploy): `worker.ts` roteia `/api/*` e
+    `/tasks/processar` sem framework. `POST /api/conferencias` **persiste** o job (`conf_jobs` em
+    `env.DB`) e dispara um avanço imediato (`ctx.waitUntil`); o **cron** (`POST /tasks/processar`,
+    header assinado `X-Godeploy-Cron` validado contra `GODEPLOY_CRON_KEY`) avança **1 lote por tick**
+    de cada job ativo (`CONF_BATCH_SIZE`, default 25). **Sem `scheduled`/`setInterval`** (modelo do
+    GoDeploy é POST numa rota). `decidirStatusJob` é **puro** (testado): pausa em
+    `AGUARDANDO_MAPEAMENTO`, conclui quando nenhuma frente de extração processa cupom (parada pela
+    idempotência da C5 na planilha), senão continua.
+  - **Sem login Google na UI** (decisão 11): acesso gated pelo GoDeploy `authenticated`; a identidade
+    que toca Drive/Sheets é a `rpa_ia` (refresh token). SPA vanilla (`src/web/`): perfil → mês + link
+    do form → dashboard com poll; tela de confirmação de mapa só quando a IA fica incerta.
+  - **Flip + remoção do v1 genérico** (strangler-fig, spec §1): removidos `src/{auth,pipeline,queue}/`,
+    `src/api/{db,deps,google,processar}.ts`, `src/extract/{index,montar,nota-extractor,texto,xml}.ts`,
+    `src/index.ts`, `src/types/{google,job,linha,nota}.ts` e os testes do v1. Mantidos/reusados:
+    `src/sheets/{colunas,spreadsheet-id}.ts` (puros), `src/download/file-fetcher-workers.ts` (fallback),
+    parsing F1 e `src/conferencia/*`. **Nenhuma dependência externa nova.** Estado final: sem fluxo genérico.
+  - **Pendência (não-código):** provisionar runtime — secrets da `rpa_ia` + `createCronJob` apontando
+    `/tasks/processar` numa versão publicada (spec §10).
 - **2026-06-26** — **Pivô para v2 (Conferência de NF por Cupom)**, portando os 4 fluxos n8n
   (`fluxos_n8n/`). Decisões (detalhe e fonte de verdade em `spec-docs/SPEC_CONFERENCIA_V2.md`):
   (a) **substitui** o fluxo genérico do v1 (1 linha = 1 link), reusando a infra (OAuth/Sheets/OCR

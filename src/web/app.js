@@ -1,27 +1,40 @@
-// SPA da Análise de Notas Fiscais — vanilla JS, servida como asset estático.
-// A devolutiva na tela (CLAUDE.md §Decisões): login → colar link → progresso + resumo.
+// SPA da Conferência de NF por Cupom (v2) — vanilla JS, servida como asset estático.
+// Fluxo (spec §9 / decisão 9): escolher perfil → mês + link do form → dashboard.
+// Sem login Google na UI (decisão 11): o acesso já é gated pelo GoDeploy.
 
 const $ = (id) => document.getElementById(id);
 
 const secoes = {
   carregando: $("estado-carregando"),
-  login: $("estado-login"),
-  app: $("estado-app"),
+  iniciar: $("estado-iniciar"),
+  mapeamento: $("estado-mapeamento"),
   progresso: $("estado-progresso"),
 };
 
 function mostrar(nome) {
   for (const [chave, el] of Object.entries(secoes)) {
-    el.classList.toggle("oculto", chave !== nome);
+    if (el) el.classList.toggle("oculto", chave !== nome);
   }
 }
 
-function formatarReais(centavos) {
-  return (centavos / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
+// Espelha ROTULO_STATUS (src/conferencia/tipos.ts) — a chave da API é o enum.
+const ROTULO_STATUS = {
+  APROVADO: "Aprovado",
+  PARCIAL: "Parcial",
+  NAO_APROVADO: "Não Aprovado",
+  SEM_NF: "Sem NF anexada",
+  NAO_LEGIVEL: "Não foi possível ler a NF",
+  CNPJ_DIFERENTE: "CNPJ diferente",
+};
+// Ordem fixa de exibição (do melhor ao pior, depois os especiais).
+const ORDEM_STATUS = [
+  "APROVADO",
+  "PARCIAL",
+  "NAO_APROVADO",
+  "CNPJ_DIFERENTE",
+  "SEM_NF",
+  "NAO_LEGIVEL",
+];
 
 async function pedirJson(url, opcoes) {
   const resp = await fetch(url, { credentials: "same-origin", ...opcoes });
@@ -39,66 +52,68 @@ async function pedirJson(url, opcoes) {
 }
 
 let intervaloPoll = null;
+let jobAtual = null;
 
-function pintarProgresso(p) {
-  const feito = p.concluidos + p.erros;
-  const pct = p.total > 0 ? Math.round((feito / p.total) * 100) : 0;
-  $("barra-preenchida").style.width = pct + "%";
-  $("m-total").textContent = p.total;
-  $("m-concluidos").textContent = p.concluidos;
-  $("m-processando").textContent = p.processando;
-  $("m-pendentes").textContent = p.pendentes;
-  $("m-erros").textContent = p.erros;
-  $("m-valor").textContent = formatarReais(p.valorTotalCentavos);
+// ──────────────────────────── Carregar perfis ────────────────────────────
 
-  const terminou = p.status === "CONCLUIDO" || p.status === "FALHOU";
-  if (terminou && p.total > 0) {
-    $("resumo-progresso").textContent =
-      `Concluído: ${p.concluidos} de ${p.total} linha(s) processada(s), ${p.erros} com erro.`;
-  } else if (p.total === 0) {
-    $("resumo-progresso").textContent = "Lendo a planilha e preparando as linhas…";
+let perfisCarregados = [];
+
+async function carregarPerfis() {
+  const dados = await pedirJson("/api/perfis");
+  perfisCarregados = dados.perfis || [];
+
+  const sel = $("perfil");
+  sel.innerHTML = "";
+  for (const p of perfisCarregados) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    const frentes = (p.frentes || []).join(" · ");
+    opt.textContent = `${p.marca.nome} — ${p.nome}${frentes ? ` (${frentes})` : ""}`;
+    opt.disabled = !p.baseConfigurada;
+    sel.appendChild(opt);
+  }
+
+  sel.addEventListener("change", aoTrocarPerfil);
+  aoTrocarPerfil();
+  mostrar("iniciar");
+}
+
+function perfilSelecionado() {
+  return perfisCarregados.find((p) => p.id === $("perfil").value);
+}
+
+function aoTrocarPerfil() {
+  const p = perfilSelecionado();
+  const aviso = $("aviso-perfil");
+  // Pré-preenche o link do form com o do mês anterior (decisão 4: salvo no perfil).
+  if (p && p.formSheetUrl) $("form-url").value = p.formSheetUrl;
+  if (p && !p.baseConfigurada) {
+    aviso.textContent =
+      "Este perfil ainda é um esqueleto (base não configurada). Escolha outro perfil.";
+    aviso.classList.remove("oculto");
+    $("btn-iniciar").disabled = true;
   } else {
-    $("resumo-progresso").textContent = `${pct}% — processando ${p.total} linha(s)…`;
+    aviso.classList.add("oculto");
+    $("btn-iniciar").disabled = false;
   }
 }
 
-function acompanhar(jobId) {
-  mostrar("progresso");
-  if (intervaloPoll) clearInterval(intervaloPoll);
+// ──────────────────────────── Iniciar conferência ────────────────────────────
 
-  const tick = async () => {
-    try {
-      const p = await pedirJson(`/api/jobs/${jobId}`);
-      pintarProgresso(p);
-      if (p.status === "CONCLUIDO" || p.status === "FALHOU") {
-        clearInterval(intervaloPoll);
-        intervaloPoll = null;
-      }
-    } catch (e) {
-      // mantém o polling; erro transitório de rede não derruba a tela
-      console.warn("poll:", e.message);
-    }
-  };
-
-  tick();
-  intervaloPoll = setInterval(tick, 2000);
-  // Cutuca o processamento (sem esperar só pelo cron).
-  pedirJson("/api/processar", { method: "POST" }).catch(() => {});
-}
-
-async function criarJob(evento) {
+async function iniciarConferencia(evento) {
   evento.preventDefault();
-  const btn = $("btn-criar");
+  const btn = $("btn-iniciar");
   const erroEl = $("erro-form");
   erroEl.classList.add("oculto");
   btn.disabled = true;
 
   try {
-    const url = $("url").value.trim();
-    const aba = $("aba").value.trim();
-    const corpo = { url };
-    if (aba) corpo.aba = aba;
-    const res = await pedirJson("/api/jobs", {
+    const corpo = {
+      perfilId: $("perfil").value,
+      mesAlvo: $("mes").value.trim(),
+      formUrl: $("form-url").value.trim(),
+    };
+    const res = await pedirJson("/api/conferencias", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(corpo),
@@ -112,21 +127,178 @@ async function criarJob(evento) {
   }
 }
 
+// ──────────────────────────── Dashboard / progresso ────────────────────────────
+
+function pararPoll() {
+  if (intervaloPoll) clearInterval(intervaloPoll);
+  intervaloPoll = null;
+}
+
+function pintarProgresso(p) {
+  const rotuloJob = {
+    CRIADO: "Preparando…",
+    PROCESSANDO: "Processando…",
+    AGUARDANDO_MAPEAMENTO: "Aguardando confirmação de colunas",
+    CONCLUIDO: "Concluído",
+    FALHOU: "Falhou",
+  };
+  const resumo = $("resumo-progresso");
+  if (p.status === "CONCLUIDO") {
+    resumo.textContent = `Concluído — ${p.total} cupom(ns) conferido(s).`;
+  } else if (p.status === "FALHOU") {
+    resumo.textContent = "A conferência falhou.";
+  } else if (p.total === 0) {
+    resumo.textContent = "Lendo a planilha e cruzando os cupons…";
+  } else {
+    resumo.textContent = `${rotuloJob[p.status] || p.status} — ${p.total} cupom(ns) até agora.`;
+  }
+
+  // Métricas por status (só as frentes de extração; SOMA vira "ajustes").
+  const metricas = $("metricas");
+  metricas.innerHTML = "";
+  const adicionar = (rotulo, valor) => {
+    const div = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = rotulo;
+    const dd = document.createElement("dd");
+    dd.textContent = valor;
+    div.append(dt, dd);
+    metricas.appendChild(div);
+  };
+  adicionar("Total", p.total ?? 0);
+  for (const chave of ORDEM_STATUS) {
+    const n = (p.porStatus || {})[chave];
+    if (n) adicionar(ROTULO_STATUS[chave], n);
+  }
+
+  const ajustes = $("info-ajustes");
+  if (p.ajustesSoma > 0) {
+    ajustes.textContent = `${p.ajustesSoma} cupom(ns) reconciliado(s) pela soma (influ + assessoria).`;
+    ajustes.classList.remove("oculto");
+  } else {
+    ajustes.classList.add("oculto");
+  }
+
+  const erroEl = $("erro-job");
+  if (p.erro) {
+    erroEl.textContent = p.erro;
+    erroEl.classList.remove("oculto");
+  } else {
+    erroEl.classList.add("oculto");
+  }
+}
+
+function acompanhar(jobId) {
+  jobAtual = jobId;
+  mostrar("progresso");
+  pararPoll();
+
+  const tick = async () => {
+    try {
+      const p = await pedirJson(`/api/conferencias/${jobId}`);
+      if (p.status === "AGUARDANDO_MAPEAMENTO" && p.pendenciaMapa) {
+        pararPoll();
+        mostrarMapeamento(jobId, p.pendenciaMapa);
+        return;
+      }
+      pintarProgresso(p);
+      if (p.status === "CONCLUIDO" || p.status === "FALHOU") {
+        pararPoll();
+      }
+    } catch (e) {
+      // erro transitório de rede não derruba a tela; o poll segue
+      console.warn("poll:", e.message);
+    }
+  };
+
+  tick();
+  intervaloPoll = setInterval(tick, 2500);
+}
+
+// ──────────────────────────── Confirmação de mapeamento ────────────────────────────
+
+let frentePendente = null;
+
+function mostrarMapeamento(jobId, pendencia) {
+  frentePendente = pendencia.frente;
+  const campos = $("campos-mapa");
+  campos.innerHTML = "";
+
+  const cabecalhos = pendencia.cabecalhos || [];
+  for (const papel of pendencia.papeis || []) {
+    const id = `mapa-${papel}`;
+    const label = document.createElement("label");
+    label.setAttribute("for", id);
+    label.textContent = papel;
+    const sel = document.createElement("select");
+    sel.id = id;
+    sel.dataset.papel = papel;
+
+    const vazio = document.createElement("option");
+    vazio.value = "";
+    vazio.textContent = "— escolher coluna —";
+    sel.appendChild(vazio);
+
+    const proposto = (pendencia.proposto || {})[papel];
+    for (const col of cabecalhos) {
+      const opt = document.createElement("option");
+      opt.value = col;
+      opt.textContent = col;
+      if (proposto && proposto.coluna === col) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    campos.append(label, sel);
+  }
+
+  mostrar("mapeamento");
+}
+
+async function confirmarMapeamento(evento) {
+  evento.preventDefault();
+  const btn = $("btn-mapa");
+  const erroEl = $("erro-mapa");
+  erroEl.classList.add("oculto");
+  btn.disabled = true;
+
+  try {
+    const mapeamento = {};
+    for (const sel of $("campos-mapa").querySelectorAll("select")) {
+      const col = sel.value.trim();
+      if (col) mapeamento[sel.dataset.papel] = col;
+    }
+    if (Object.keys(mapeamento).length === 0) {
+      throw new Error("Escolha ao menos uma coluna.");
+    }
+    await pedirJson(`/api/conferencias/${jobAtual}/mapeamento`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ frente: frentePendente, mapeamento }),
+    });
+    acompanhar(jobAtual); // religa o polling; o job volta a PROCESSANDO
+  } catch (e) {
+    erroEl.textContent = e.message;
+    erroEl.classList.remove("oculto");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ──────────────────────────── Bootstrap ────────────────────────────
+
 async function iniciar() {
-  $("form-job").addEventListener("submit", criarJob);
-  $("btn-novo").addEventListener("click", () => {
-    if (intervaloPoll) clearInterval(intervaloPoll);
-    $("url").value = "";
-    $("aba").value = "";
-    mostrar("app");
+  $("form-conf").addEventListener("submit", iniciarConferencia);
+  $("form-mapa").addEventListener("submit", confirmarMapeamento);
+  $("btn-nova").addEventListener("click", () => {
+    pararPoll();
+    jobAtual = null;
+    $("mes").value = "";
+    mostrar("iniciar");
   });
 
   try {
-    const eu = await pedirJson("/api/me");
-    $("email-usuario").textContent = eu.email || "sua conta Google";
-    mostrar("app");
-  } catch {
-    mostrar("login");
+    await carregarPerfis();
+  } catch (e) {
+    $("estado-carregando").innerHTML = `<p class="erro">Falha ao carregar perfis: ${e.message}</p>`;
   }
 }
 

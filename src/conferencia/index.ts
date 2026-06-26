@@ -58,6 +58,25 @@ export { RepositorioPerfisMemoria } from './perfis/repositorio-memoria.js';
 // Persistência (DDL aditivo do env.DB — wireado em C5/C6)
 export { DDL_CONFERENCIA, initSchemaConferencia } from './persistencia/schema.js';
 
+// Validação — coração puro (fatia C1): classificação, retroativo, soma. Reusa a F1.
+export {
+  classificarStatus,
+  statusEhMelhor,
+  ORDEM_APROVACAO,
+  mesParaNumero,
+  validarNfInicial,
+  valorNfParaCentavos,
+  validarComRetroativo,
+  reconciliarSoma,
+} from './validacao/index.js';
+export type {
+  StatusAprovacao,
+  SaidaValidacaoInicial,
+  EntradaRetroativo,
+  ResultadoRetroativo,
+  EntradaSoma,
+} from './validacao/index.js';
+
 // Mapeamento de colunas por IA (C2 — spec §6): header→papéis, confiança, política e cache
 export {
   LIMIAR_CONFIANCA_PADRAO,

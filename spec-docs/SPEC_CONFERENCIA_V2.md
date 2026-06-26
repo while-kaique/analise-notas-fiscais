@@ -4,7 +4,8 @@
 > `spec-docs/`. Sucede o **[`SPEC_FATIAS_V1.md`](SPEC_FATIAS_V1.md)** (v1 **fechado** e que será
 > **substituído** — ver §1). Memória pareada de handoff: `conferencia-v2-spec-junho-2026`.
 >
-> **Status global (2026-06-26): C0 em andamento** (worktree `feat/conferencia-fundacao`). Origem:
+> **Status global (2026-06-26): C0 mergeada** (PR #13); **C1 em andamento** (worktree
+> `feat/conferencia-validacao`). Origem:
 > 4 fluxos n8n em `fluxos_n8n/` (Gocase: Influs, Assessoria, Soma, Embaixador) portados para o
 > sistema, **melhores/mais rápidos**, e generalizados para outras marcas (Gobeaute) via IA de
 > mapeamento de colunas.
@@ -81,8 +82,23 @@ embaixadores enviaram a NF correta, cruzando o **FORMULÁRIO** (NF + cupom) com 
 8. **Unidades internas** seguem o v1: **valores em centavos (inteiro)**, datas **ISO 8601**,
    CNPJ/CPF **só dígitos**. Conversão p/ reais / `DD/MM/YYYY` só na **escrita** da planilha.
 9. **Devolutiva = escrita no FORMULÁRIO** + **dashboard na tela**. Não grava na base.
-10. **Download das NFs = Google Drive via OAuth** (escopo novo `drive.readonly`) — links do form
-    são arquivos do Drive (upload do Google Forms), não URLs livres.
+10. **Download das NFs = Google Drive** (escopo `drive.readonly`) — links do form são arquivos do
+    Drive (upload do Google Forms), não URLs livres.
+11. **Identidade de serviço fixa + sem login na UI (2026-06-26).** _Supera a decisão original
+    "OAuth do usuário" do v1 para este produto._
+    - O cron lê o Drive e escreve nas planilhas como **`rpa_ia@gocase.com` via refresh token**:
+      consentimento **offline uma vez** (escopos `spreadsheets` + `drive.readonly`) → guarda o
+      **`GOOGLE_OAUTH_REFRESH_TOKEN`** como secret; o Worker troca por access token a cada tick.
+      **NÃO** é OAuth por usuário nem Service Account. A `rpa_ia` já tem **leitura na pasta das NFs
+      e escrita nas planilhas** (mesmo acesso do n8n) → **sem re-compartilhar por mês**.
+    - **Requisito:** tela de consentimento OAuth em **"Em produção"** (publicada); em modo "Teste"
+      o refresh token expira em 7 dias. _(Alternativa possível: Service Account, padrão do
+      `godocs-main` — exige compartilhar pasta+planilhas com o e-mail da SA; preterida pelo atrito
+      de re-compartilhar o form novo a cada mês.)_
+    - **App sem login Google na UI:** o acesso à tela já é gated pelo GoDeploy
+      (`visibility: authenticated`, só gocase). Remove a dependência de
+      `GOOGLE_OAUTH_CLIENT_ID/SECRET` (hoje **ausentes** nos secrets do app `687dbb00`). A sessão por
+      cookie HMAC do v1 fica opcional (controle interno), não para autenticar no Google.
 
 ---
 
@@ -203,7 +219,8 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 1. **`perfis/`** — modelo §3, seed Gocase + esqueleto Gobeaute, repo (memória agora; `env.DB` em C5).
 2. **`mapeamento/`** — IA de colunas (§6) atrás de `MapeadorColunas`.
 3. **`dados/`** — ler base+form (`SheetsClient`), normalizar, filtrar, **merge por cupom**, indexar histórico.
-4. **`drive/`** — download de NF do Drive (OAuth + `drive.readonly`); `FileFetcherWorkers` = fallback.
+4. **`drive/`** — download de NF do Drive como **`rpa_ia` (refresh token, decisão 11)** + escopo
+   `drive.readonly`; `FileFetcherWorkers` = fallback p/ link não-Drive.
 5. **`extracao/`** — OCR Worker (reusa) → AI Proxy (prompt §5.4) → `CamposNf`. Cache por hash.
 6. **`validacao/`** — **puras**: `classificarStatus`, `validarNfInicial`, `validarComRetroativo`,
    `mesParaNumero`, `reconciliarSoma`. Reusa F1. **Coração testado** (fatia C1).
@@ -258,12 +275,18 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 ---
 
 ## 8. Segurança e segredos
-- **Novos:** `LLM_BASE_URL`, `API_PROXY_TOKEN`, `LLM_MODEL`, `LLM_PROVIDER` (+ opcionais). **Já
-  existe:** `OCR_WORKER_TOKEN` (estava **exposto** no JSON do n8n `Bearer 369e2e…` — tratar como
-  segredo; rotacionar se possível). Tudo via `setAppSecret`; placeholders no `.env.example`.
-- **Escopo OAuth novo:** `https://www.googleapis.com/auth/drive.readonly` no provider Node **e**
-  Workers (`src/api/google.ts`). Exige reconsentimento.
-- Não logar conteúdo de NF/PII. Tokens OAuth no `env.DB`, nunca commitados.
+- **Segredos do AI Proxy (cadastrados 2026-06-26 no app `687dbb00`):** `LLM_BASE_URL`
+  (`https://ai-proxy.gogroupbr.com/v1`), `API_PROXY_TOKEN`, `LLM_MODEL` (`gpt-5.4-mini`),
+  `LLM_PROVIDER` (`openai`). **Já existe:** `OCR_WORKER_TOKEN`/`OCR_WORKER_URL` (o token estava
+  **exposto** no JSON do n8n — rotacionar se possível). Tudo via `setAppSecret`; placeholder no
+  `.env.example`. _(O `API_PROXY_TOKEN` foi colado em chat — convém rotacionar.)_
+- **Identidade de serviço (decisão 11):** segredo **`GOOGLE_OAUTH_REFRESH_TOKEN`** da `rpa_ia`
+  (escopos `spreadsheets` + `drive.readonly`), obtido por consentimento offline 1x com a tela de
+  consentimento **publicada**. O Worker troca o refresh por access token a cada tick (endpoint
+  `oauth2/token`). `GOOGLE_OAUTH_CLIENT_ID/SECRET` passam a ser do **app OAuth da rpa_ia** (para o
+  refresh), **não** para login de usuário.
+- **Sem login de usuário na UI:** acesso gated pelo GoDeploy (`authenticated`).
+- Não logar conteúdo de NF/PII. Tokens no `env.DB`/secrets, nunca commitados.
 - **`fluxos_n8n/`** contém o token do OCR exposto — **não commitar** sem sanitizar (manter
   local/gitignore).
 
@@ -273,13 +296,13 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 
 | # | Fatia | Escopo | Depende | Estado |
 |---|-------|--------|---------|--------|
-| **C0** | **Fundação v2 (aditiva)** | tipos do domínio, interfaces de camada, **seed Gocase + esqueleto Gobeaute**, repo em memória, **DDL `env.DB`** (aditivo, não toca v1). | — | 🟦 em andamento |
-| **C1** | **Validação + Retroativo + Soma (puro)** | `classificarStatus` (3 níveis), `validarNfInicial`, `validarComRetroativo`, `reconciliarSoma`, `mesParaNumero`; reusa F1. **Muitos testes.** | C0 | ⬜ |
+| **C0** | **Fundação v2 (aditiva)** | tipos do domínio, interfaces de camada, **seed Gocase + esqueleto Gobeaute**, repo em memória, **DDL `env.DB`** (aditivo, não toca v1). | — | ✅ PR #13 mergeada |
+| **C1** | **Validação + Retroativo + Soma (puro)** | `classificarStatus` (3 níveis), `validarNfInicial`, `validarComRetroativo`, `reconciliarSoma`, `mesParaNumero`; reusa F1. **Muitos testes.** | C0 | 🟦 em andamento (worktree `feat/conferencia-validacao`) — aterrissou em `src/conferencia/validacao/` + `test/conferencia-validacao.test.ts` |
 | **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | 🟩 PR #14 — `src/conferencia/mapeamento/` |
 | **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNf`; cache por hash. | C0 | ⬜ |
-| **C4** | **Download Google Drive** | escopo `drive.readonly` (Node + Workers); `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ⬜ |
+| **C4** | **Drive + identidade de serviço** | credencial **`rpa_ia` (refresh token → access token)** com escopos `spreadsheets`+`drive.readonly`; `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ⬜ |
 | **C5** | **Pipeline + job/cron + remoção do domínio v1** | ler base+form, normalizar/filtrar/merge, processar cupom (C4→C3→C1), depois Soma; idempotência/lote. **Remove `pipeline`/`queue`/`montar/texto/xml` genéricos.** | C0 (C1–C4 via interface) | ⬜ |
-| **C6** | **API + Web + flip do produto** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard. **Remove o wiring v1 genérico.** | C0, C5 | ⬜ |
+| **C6** | **API + Web + flip do produto** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard. **Remove o wiring v1 genérico e o login Google da UI** (acesso via GoDeploy `authenticated`). | C0, C5 | ⬜ |
 
 **Ordem:** C0 → (C1, C2, C3, C4 em paralelo) → C5 → C6.
 **Gate por fatia:** `npm run typecheck` 0 erros · `npm test` verde · `npm run build` ok.
@@ -290,9 +313,13 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 - [ ] **Gobeaute (TASK FUTURA — só esqueleto agora):** IDs/abas das bases, CNPJ do tomador,
       exclusões; confirmar se o "formato" das colunas espelha o Gocase. Registrado em §3 e no seed
       (`src/conferencia/perfis/seed.ts`, perfis marcados `TODO`).
-- [ ] **`LLM_BASE_URL` / `API_PROXY_TOKEN` / `LLM_MODEL`:** cadastrar como segredos no GoDeploy
-      (mesmos valores do gateway usado pelo `godocs-main`).
-- [ ] **Escopo `drive.readonly`:** adicionar ao OAuth e reconsentir.
+- [x] **Segredos do AI Proxy** (`LLM_BASE_URL`/`API_PROXY_TOKEN`/`LLM_MODEL`/`LLM_PROVIDER`)
+      cadastrados no app `687dbb00` em 2026-06-26 (via `setAppSecret`).
+- [ ] **Identidade de serviço `rpa_ia` (decisão 11):** publicar a tela de consentimento OAuth
+      ("Em produção"); fazer o consentimento **offline 1x** com `rpa_ia@gocase.com` (escopos
+      `spreadsheets` + `drive.readonly`); cadastrar `GOOGLE_OAUTH_REFRESH_TOKEN` (+ `CLIENT_ID`/
+      `CLIENT_SECRET` do app OAuth da rpa_ia) como secrets. Confirmar que a `rpa_ia` tem leitura na
+      pasta das NFs e escrita nas planilhas-base e de formulário.
 - [ ] Confirmar comportamento de **criar coluna de saída** na UI (aviso ao usuário?).
 
 ---

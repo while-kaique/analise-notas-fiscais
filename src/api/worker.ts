@@ -38,6 +38,21 @@ function segredoSessao(env: Env): string {
   return s;
 }
 
+/**
+ * Dispara o avanço dos jobs em background (`ctx.waitUntil`), **capturando** qualquer
+ * rejeição e logando-a. Sem isso, uma falha em `avancarJobs` (ex.: DB/segredo ausente)
+ * vira uma rejeição não-tratada que a plataforma reporta como `CronError: internal error`
+ * — opaca, sem a mensagem real. Aqui o erro aparece nos logs do app (getAppLogs) e o
+ * tick do cron ainda responde 202 (falha isolada, CLAUDE.md §3).
+ */
+function dispararAvanco(env: Env, ctx: ExecutionContext): void {
+  ctx.waitUntil(
+    avancarJobs(env).catch((e) => {
+      console.error('avancarJobs falhou:', e instanceof Error ? (e.stack ?? e.message) : e);
+    }),
+  );
+}
+
 const COOKIE_STATE = 'nf_oauth_state';
 
 /** GET /api/auth/google — inicia o consentimento OAuth. */
@@ -161,15 +176,15 @@ async function rotear(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
   if (metodo === 'POST' && pathname === '/tasks/processar') {
     const assinado = req.headers.get('x-godeploy-cron');
     if (env.GODEPLOY_CRON_KEY && !assinado) return erro('Cron não autorizado.', 401);
-    ctx.waitUntil(avancarJobs(env));
-    return json({ ok: true }, 202);
+    dispararAvanco(env, ctx);
+    return json({ ok: true }, 200);
   }
 
   // Gatilho manual de processamento (útil sem esperar o cron; protegido por sessão).
   if (metodo === 'POST' && pathname === '/api/processar') {
     const id = await sessaoDoRequest(req, segredoSessao(env));
     if (!id) return erro('Não autenticado.', 401);
-    ctx.waitUntil(avancarJobs(env));
+    dispararAvanco(env, ctx);
     return json({ ok: true, mensagem: 'Processamento disparado.' }, 202);
   }
 
@@ -187,6 +202,10 @@ export default {
     try {
       return await rotear(req, env, ctx);
     } catch (e) {
+      // Loga o erro real: sem isto, um throw em `rotear` (ex.: initSchema/DB,
+      // segredo ausente) vira só um 500 opaco — e, num tick de cron, a plataforma
+      // reporta `CronError: internal error` sem a mensagem. Não vaza PII (só o erro).
+      console.error('worker fetch erro:', e instanceof Error ? (e.stack ?? e.message) : e);
       const msg = e instanceof Error ? e.message : 'Erro interno.';
       return erro(msg, 500);
     }

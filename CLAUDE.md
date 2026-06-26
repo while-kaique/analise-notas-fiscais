@@ -175,9 +175,26 @@ já no F0). Registre a escolha em §11 ao implementar.
 > Runtime **stateless e sem processo em background** — daí a fila virar `env.DB`+cron e os SDKs
 > Node (`googleapis`, `pdf-parse`, `node:dns`) precisarem migrar para `fetch`/REST (task **FUND**).
 
+> **➡️ v1 FECHADO (F0–F6 mergeadas). Trabalho ativo = v2 — Conferência de NF por Cupom.**
+> Migração dos 4 fluxos n8n (`fluxos_n8n/`): validar NFs por **cupom** cruzando FORMULÁRIO × BASE,
+> por marca, com retroativo e soma. **Substitui** o fluxo genérico do v1 (reusa a infra). Spec ativo:
+> **[`spec-docs/SPEC_CONFERENCIA_V2.md`](spec-docs/SPEC_CONFERENCIA_V2.md)** (fatias **C0–C6**; C0 feita).
+> Memória: `conferencia-v2-spec-junho-2026`.
+
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-26** — **Pivô para v2 (Conferência de NF por Cupom)**, portando os 4 fluxos n8n
+  (`fluxos_n8n/`). Decisões (detalhe e fonte de verdade em `spec-docs/SPEC_CONFERENCIA_V2.md`):
+  (a) **substitui** o fluxo genérico do v1 (1 linha = 1 link), reusando a infra (OAuth/Sheets/OCR
+  Worker/deploy+cron); remoção progressiva (domínio em C5, wiring API/web em C6 — C0 é aditiva).
+  (b) **IA = GoGroup AI Proxy** (gateway OpenAI-compatível; cliente portado de
+  `godocs-main/src/lib/llm.ts`, só `fetch`) para **extrair campos da NF** e **mapear
+  cabeçalho→colunas** — segredos `LLM_BASE_URL`/`API_PROXY_TOKEN`/`LLM_MODEL`/`LLM_PROVIDER`.
+  (c) **Status em 3 níveis**: Aprovado (exato) · Parcial (≤ R$30, `margemParcialCentavos`) · Não
+  Aprovado. (d) **Perfis por marca** (base fixa; 1 link de formulário por mês, salvo no banco).
+  (e) Download das NFs via **Google Drive** (escopo OAuth novo `drive.readonly`). Gobeaute =
+  esqueleto/task futura. **Nenhuma dependência externa nova** (IA e Drive via `fetch`).
 - **2026-06-25** — Stack base definida: Node.js + TypeScript, Google Sheets como fonte de
   planilha, Tesseract como OCR inicial (atrás de interface trocável). Pipeline por job
   assíncrono. _(planejamento detalhado pendente)_

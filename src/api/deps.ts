@@ -11,7 +11,9 @@
 import type { DependenciasPipeline } from '../pipeline/index.js';
 import type { SheetsClient } from '../sheets/index.js';
 import { criarNotaExtractor } from '../extract/index.js';
-import { criarFileFetcherWorkers } from '../download/index.js';
+// Import direto (não pelo barril): o barril reexporta `file-fetcher.ts`, que puxa
+// `node:dns`/`node:crypto` no topo e quebraria o bundle do Worker (edge).
+import { criarFileFetcherWorkers } from '../download/file-fetcher-workers.js';
 import type { Env } from './env.js';
 
 /** Tamanho máximo de PDF a baixar (20 MB) e timeout de download (30 s). */

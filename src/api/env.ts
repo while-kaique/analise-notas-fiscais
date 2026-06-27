@@ -20,10 +20,16 @@ export interface ResultadoExec {
   rowsWritten: number;
 }
 
-/** Banco SQLite embutido exposto pelo GoDeploy como `env.DB`. */
+/**
+ * Banco SQLite embutido exposto pelo GoDeploy como `env.DB`.
+ *
+ * `params` é **obrigatório** (passe `[]` quando não houver bind): o runtime do GoDeploy
+ * itera sobre o argumento e estoura `params is not iterable` se ele vier `undefined`.
+ * Tipá-lo como obrigatório faz o `tsc` (gate) barrar qualquer chamada sem params.
+ */
 export interface GoDeployDB {
-  query(sql: string, params?: readonly unknown[]): Promise<ResultadoQuery>;
-  exec(sql: string, params?: readonly unknown[]): Promise<ResultadoExec>;
+  query(sql: string, params: readonly unknown[]): Promise<ResultadoQuery>;
+  exec(sql: string, params: readonly unknown[]): Promise<ResultadoExec>;
 }
 
 /**

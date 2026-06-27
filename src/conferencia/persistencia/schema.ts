@@ -65,6 +65,6 @@ export const DDL_CONFERENCIA: readonly string[] = [
 /** Cria as tabelas da conferência se ainda não existirem (idempotente). */
 export async function initSchemaConferencia(db: GoDeployDB): Promise<void> {
   for (const ddl of DDL_CONFERENCIA) {
-    await db.exec(ddl);
+    await db.exec(ddl, []);
   }
 }

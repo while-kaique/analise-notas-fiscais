@@ -68,8 +68,11 @@ export function atividadesDoResumo(frentes: readonly ResultadoFrente[]): NovaAti
         tipo: ehSoma ? 'soma' : 'cupom',
         status: r.status,
         mensagem: `${rotuloFrente} · cupom ${cupom} → ${rotuloStatus}${sufixoErro}`,
+        // 1 linha por cupom/frente (r.cupom é normalizado) — não duplica em reprocesso/corrida.
+        dedupeKey: `cupom:${f.frente}:${r.cupom}`,
       });
     }
+    // Marcador por lote: SEM dedupeKey de propósito — cada tick mostra o seu.
     eventos.push({
       frente: f.frente,
       tipo: 'frente_concluida',
@@ -104,7 +107,7 @@ export async function avancarConfJobs(env: Env): Promise<void> {
       log.error('job falhou', { job: job.id, perfil: job.perfilId, erro: stackErro(e) });
       await atualizarStatusConfJob(env.DB, job.id, 'FALHOU', { erro: msgErro(e) }).catch(() => {});
       await registrarAtividades(env.DB, job.id, [
-        { tipo: 'job_falhou', mensagem: `A conferência falhou: ${msgErro(e)}` },
+        { tipo: 'job_falhou', dedupeKey: 'job_falhou', mensagem: `A conferência falhou: ${msgErro(e)}` },
       ]).catch(() => {});
     }
   }
@@ -133,6 +136,7 @@ async function avancarConfJob(env: Env, job: ConfJob, deps: DepsConferencia): Pr
     await registrarAtividades(env.DB, job.id, [
       {
         tipo: 'job_iniciado',
+        dedupeKey: 'job_iniciado',
         mensagem: `Conferência iniciada — ${perfil.nome} · ${job.mesAlvo}. Lendo a planilha e cruzando os cupons…`,
       },
     ]);
@@ -169,6 +173,7 @@ async function avancarConfJob(env: Env, job: ConfJob, deps: DepsConferencia): Pr
       {
         frente: decisao.frenteParaConfirmar,
         tipo: 'aguardando_mapeamento',
+        dedupeKey: `aguardando:${decisao.frenteParaConfirmar}`,
         mensagem: `Aguardando você confirmar as colunas da frente ${ROTULO_FRENTE[decisao.frenteParaConfirmar] ?? decisao.frenteParaConfirmar}.`,
       },
     ]);
@@ -178,7 +183,11 @@ async function avancarConfJob(env: Env, job: ConfJob, deps: DepsConferencia): Pr
   await atualizarStatusConfJob(env.DB, job.id, decisao.status, { pendencia: null });
   if (decisao.status === 'CONCLUIDO') {
     await registrarAtividades(env.DB, job.id, [
-      { tipo: 'job_concluido', mensagem: 'Conferência concluída — nada mais a processar.' },
+      {
+        tipo: 'job_concluido',
+        dedupeKey: 'job_concluido',
+        mensagem: 'Conferência concluída — nada mais a processar.',
+      },
     ]);
   }
   jlog.info('job avançado', { status: decisao.status, ms: Date.now() - inicio });

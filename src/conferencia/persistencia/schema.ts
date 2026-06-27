@@ -12,7 +12,8 @@
  * - `conf_jobs`    — uma execução = (perfil, mês). Avança por cron (spec §7).
  * - `conf_linhas`  — uma linha conferida por (job, frente, cupom). Idempotência por status.
  * - `conf_atividades` — feed cronológico de eventos do job (a tela "rolando"). Append-only,
- *   `id` autoincremental serve de cursor incremental para o poll do frontend.
+ *   `id` autoincremental serve de cursor para o poll do frontend; `chave` (UNIQUE) dá
+ *   idempotência (ticks concorrentes do cron não duplicam um marco/cupom no feed).
  */
 import type { GoDeployDB } from '../../api/env.js';
 
@@ -65,6 +66,7 @@ export const DDL_CONFERENCIA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS conf_atividades (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      job_id TEXT NOT NULL,
+     chave TEXT NOT NULL UNIQUE,
      frente TEXT,
      cupom TEXT,
      tipo TEXT NOT NULL,

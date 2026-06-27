@@ -202,6 +202,12 @@ export interface NovaAtividade {
   tipo: TipoAtividade;
   status?: StatusConferencia;
   mensagem: string;
+  /**
+   * Chave de idempotência (escopada ao job). Se informada, o evento entra **no máximo
+   * uma vez** por job — ticks concorrentes do cron não duplicam marcos/cupons. Se
+   * ausente, o evento é sempre inserido (chave aleatória) — ex.: marcador por lote.
+   */
+  dedupeKey?: string;
 }
 
 function mapearAtividade(linha: Record<string, unknown>): Atividade {
@@ -233,10 +239,14 @@ export async function registrarAtividades(
   if (atividades.length === 0) return;
   const ts = agora();
   for (const a of atividades) {
+    // `chave` única dá idempotência: eventos com dedupeKey entram 1x por job; sem ela,
+    // uma chave aleatória garante inserção sempre. `INSERT OR IGNORE` descarta colisões.
+    const chave = `${jobId}:${a.dedupeKey ?? crypto.randomUUID()}`;
     await db.exec(
-      `INSERT INTO conf_atividades (job_id, frente, cupom, tipo, status, mensagem, criado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [jobId, a.frente ?? null, a.cupom ?? null, a.tipo, a.status ?? null, a.mensagem, ts],
+      `INSERT OR IGNORE INTO conf_atividades
+         (job_id, chave, frente, cupom, tipo, status, mensagem, criado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [jobId, chave, a.frente ?? null, a.cupom ?? null, a.tipo, a.status ?? null, a.mensagem, ts],
     );
   }
 }

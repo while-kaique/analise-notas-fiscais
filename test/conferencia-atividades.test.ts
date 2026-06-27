@@ -13,6 +13,7 @@ import type { ResultadoConferencia, StatusConferencia } from '../src/conferencia
 interface LinhaAtv {
   id: number;
   job_id: string;
+  chave: string;
   frente: string | null;
   cupom: string | null;
   tipo: string;
@@ -23,16 +24,20 @@ interface LinhaAtv {
 
 function fakeDb(): GoDeployDB {
   const linhas: LinhaAtv[] = [];
+  const chaves = new Set<string>(); // simula a constraint UNIQUE (INSERT OR IGNORE)
   let seq = 0;
   return {
     exec: (_sql, params) => {
-      const [job_id, frente, cupom, tipo, status, mensagem, criado_em] = params as (
+      const [job_id, chave, frente, cupom, tipo, status, mensagem, criado_em] = params as (
         | string
         | null
       )[];
+      if (chaves.has(chave as string)) return Promise.resolve({ rowsWritten: 0 });
+      chaves.add(chave as string);
       linhas.push({
         id: ++seq,
         job_id: job_id as string,
+        chave: chave as string,
         frente: frente as string | null,
         cupom: cupom as string | null,
         tipo: tipo as string,
@@ -92,8 +97,16 @@ describe('atividadesDoResumo', () => {
       frente({ frente: 'INFLUS', resultados: [res('x', 'NAO_LEGIVEL', 'OCR ilegível')] }),
     ]);
     expect(evs[0]!.mensagem).toContain('OCR ilegível');
-    // o evento só carrega cupom/frente/status — nenhum campo fiscal.
-    expect(Object.keys(evs[0]!).sort()).toEqual(['cupom', 'frente', 'mensagem', 'status', 'tipo']);
+    // o evento só carrega cupom/frente/status/dedupeKey — nenhum campo fiscal (§6).
+    expect(Object.keys(evs[0]!).sort()).toEqual([
+      'cupom',
+      'dedupeKey',
+      'frente',
+      'mensagem',
+      'status',
+      'tipo',
+    ]);
+    expect(evs[0]!.dedupeKey).not.toMatch(/\d{2}\/\d{2}\/\d{4}|R\$|cnpj/i);
   });
 });
 
@@ -126,5 +139,23 @@ describe('registrarAtividades / lerAtividades (cursor incremental)', () => {
     await registrarAtividades(db, 'jobB', []); // no-op
     expect(await lerAtividades(db, 'jobB', 0)).toHaveLength(0);
     expect(await lerAtividades(db, 'jobA', 0)).toHaveLength(1);
+  });
+
+  it('dedupeKey evita duplicar marco em ticks concorrentes; sem ela sempre insere', async () => {
+    const db = fakeDb();
+    // Mesmo marco emitido duas vezes (corrida) → entra só uma vez.
+    await registrarAtividades(db, 'job1', [
+      { tipo: 'job_concluido', dedupeKey: 'job_concluido', mensagem: 'fim' },
+    ]);
+    await registrarAtividades(db, 'job1', [
+      { tipo: 'job_concluido', dedupeKey: 'job_concluido', mensagem: 'fim' },
+    ]);
+    // Marcador de lote (sem dedupeKey) emitido duas vezes → entra as duas.
+    await registrarAtividades(db, 'job1', [{ tipo: 'frente_concluida', mensagem: 'lote' }]);
+    await registrarAtividades(db, 'job1', [{ tipo: 'frente_concluida', mensagem: 'lote' }]);
+
+    const todas = await lerAtividades(db, 'job1', 0);
+    expect(todas.filter((a) => a.tipo === 'job_concluido')).toHaveLength(1);
+    expect(todas.filter((a) => a.tipo === 'frente_concluida')).toHaveLength(2);
   });
 });

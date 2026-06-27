@@ -3,67 +3,81 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Análise de Notas Fiscais</title>
+    <title>Conferência de NF por Cupom</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="casca">
       <header class="topo">
-        <h1>Análise de Notas Fiscais</h1>
+        <h1>Conferência de NF por Cupom</h1>
         <p class="sub">
-          Cole o link de uma planilha do Google Sheets — o sistema lê as linhas,
-          extrai os dados das notas e grava o resultado de volta na planilha.
+          Escolha a marca/perfil, informe o mês e cole o link do formulário de respostas.
+          O sistema cruza as notas com a base por cupom, valida valor (com retroativo e
+          soma) e grava o resultado de volta no formulário.
         </p>
       </header>
 
       <!-- Estado: carregando -->
       <section id="estado-carregando" class="cartao">
-        <p>Carregando…</p>
+        <p>Carregando perfis…</p>
       </section>
 
-      <!-- Estado: deslogado -->
-      <section id="estado-login" class="cartao oculto">
-        <h2>Entrar</h2>
-        <p>Autorize o acesso às suas planilhas para começar.</p>
-        <a class="botao" href="/api/auth/google">Entrar com Google</a>
-      </section>
+      <!-- Estado: iniciar conferência -->
+      <section id="estado-iniciar" class="cartao oculto">
+        <h2>Nova conferência</h2>
+        <form id="form-conf">
+          <label for="perfil">Perfil</label>
+          <select id="perfil" name="perfil" required></select>
+          <p id="aviso-perfil" class="aviso oculto"></p>
 
-      <!-- Estado: logado, criar job -->
-      <section id="estado-app" class="cartao oculto">
-        <div class="linha-usuario">
-          <span>Conectado como <strong id="email-usuario"></strong></span>
-        </div>
-        <form id="form-job">
-          <label for="url">Link da planilha</label>
+          <label for="mes">Mês/Ano</label>
           <input
-            id="url"
-            name="url"
+            id="mes"
+            name="mes"
+            type="text"
+            inputmode="numeric"
+            placeholder="MM/AAAA (ex.: 05/2026)"
+            pattern="\d{2}/\d{4}"
+            required
+          />
+
+          <label for="form-url">Link do formulário (respostas)</label>
+          <input
+            id="form-url"
+            name="form-url"
             type="url"
             inputmode="url"
             placeholder="https://docs.google.com/spreadsheets/d/…"
             required
           />
-          <label for="aba">Aba (opcional)</label>
-          <input id="aba" name="aba" type="text" placeholder="Ex.: Notas (vazio = primeira aba)" />
-          <button class="botao" type="submit" id="btn-criar">Processar planilha</button>
+
+          <button class="botao" type="submit" id="btn-iniciar">Iniciar conferência</button>
           <p id="erro-form" class="erro oculto"></p>
         </form>
       </section>
 
-      <!-- Estado: progresso -->
+      <!-- Estado: confirmação de mapeamento -->
+      <section id="estado-mapeamento" class="cartao oculto">
+        <h2>Confirmar colunas</h2>
+        <p>
+          A IA não teve certeza de quais colunas usar no formulário. Confirme abaixo
+          (escolha a coluna correta para cada campo) e o processamento continua.
+        </p>
+        <form id="form-mapa">
+          <div id="campos-mapa"></div>
+          <button class="botao" type="submit" id="btn-mapa">Confirmar e continuar</button>
+          <p id="erro-mapa" class="erro oculto"></p>
+        </form>
+      </section>
+
+      <!-- Estado: progresso/dashboard -->
       <section id="estado-progresso" class="cartao oculto">
-        <h2>Progresso</h2>
-        <div class="barra"><div id="barra-preenchida" class="barra-preenchida"></div></div>
+        <h2>Conferência</h2>
         <p id="resumo-progresso" class="resumo"></p>
-        <dl class="metricas">
-          <div><dt>Total</dt><dd id="m-total">0</dd></div>
-          <div><dt>Concluídas</dt><dd id="m-concluidos">0</dd></div>
-          <div><dt>Processando</dt><dd id="m-processando">0</dd></div>
-          <div><dt>Pendentes</dt><dd id="m-pendentes">0</dd></div>
-          <div><dt>Erros</dt><dd id="m-erros">0</dd></div>
-          <div><dt>Valor total</dt><dd id="m-valor">R$ 0,00</dd></div>
-        </dl>
-        <button class="botao secundario" id="btn-novo">Processar outra planilha</button>
+        <dl class="metricas" id="metricas"></dl>
+        <p id="info-ajustes" class="aviso oculto"></p>
+        <p id="erro-job" class="erro oculto"></p>
+        <button class="botao secundario" id="btn-nova">Nova conferência</button>
       </section>
     </main>
     <script src="/app.js"></script>

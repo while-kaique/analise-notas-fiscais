@@ -7,7 +7,8 @@
  *
  * Tabelas (prefixo `conf_` para não colidir com o v1):
  * - `conf_marcas`  — config por marca (spec §3).
- * - `conf_perfis`  — base fixa + link do form do mês + frentes (JSON) + cache do mapa de colunas.
+ * - `conf_perfis`  — base fixa + link do form do mês + frentes (JSON).
+ * - `conf_mapas`   — cache do mapa de colunas (IA) por chave `perfilId:FRENTE` (spec §6).
  * - `conf_jobs`    — uma execução = (perfil, mês). Avança por cron (spec §7).
  * - `conf_linhas`  — uma linha conferida por (job, frente, cupom). Idempotência por status.
  */
@@ -29,16 +30,20 @@ export const DDL_CONFERENCIA: readonly string[] = [
      base_spreadsheet_id TEXT NOT NULL DEFAULT '',
      base_aba TEXT NOT NULL DEFAULT '',
      form_sheet_url TEXT,
-     frentes TEXT NOT NULL DEFAULT '[]',
-     mapa_colunas TEXT
+     frentes TEXT NOT NULL DEFAULT '[]'
+   )`,
+  `CREATE TABLE IF NOT EXISTS conf_mapas (
+     chave TEXT PRIMARY KEY,
+     mapa TEXT NOT NULL DEFAULT '{}'
    )`,
   `CREATE TABLE IF NOT EXISTS conf_jobs (
      id TEXT PRIMARY KEY,
      perfil_id TEXT NOT NULL,
      mes_alvo TEXT NOT NULL,
-     form_spreadsheet_id TEXT NOT NULL DEFAULT '',
+     form_sheet_url TEXT NOT NULL DEFAULT '',
      status TEXT NOT NULL,
-     semeado INTEGER NOT NULL DEFAULT 0,
+     pendencia_mapa TEXT,
+     erro TEXT,
      criado_em TEXT NOT NULL,
      atualizado_em TEXT NOT NULL
    )`,

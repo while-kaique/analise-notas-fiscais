@@ -1,13 +1,8 @@
-/** Barril de tipos compartilhados. Importe daqui: `import type { Nota } from '../types/index.js'`. */
-export type { FonteDados, Nota, NotaExtraida } from './nota.js';
+/**
+ * Barril de tipos compartilhados. Importe daqui: `import type { ArquivoBaixado } from '../types/index.js'`.
+ *
+ * No v2 (conferência por cupom) os tipos genéricos do v1 (`LinhaEntrada`/`LinhaResultado`/
+ * `Job`/`Nota`/`TokensGoogle`) foram removidos junto com o pipeline genérico — restam só
+ * os tipos de arquivo, ainda usados pelo download e pela extração de NF.
+ */
 export type { TipoArquivo, ArquivoBaixado } from './arquivo.js';
-export type {
-  StatusLinha,
-  NomeColuna,
-  MapaColunas,
-  LinhaEntrada,
-  LinhaResultado,
-} from './linha.js';
-export { COLUNAS } from './linha.js';
-export type { StatusJob, Job, ProgressoJob } from './job.js';
-export type { TokensGoogle } from './google.js';

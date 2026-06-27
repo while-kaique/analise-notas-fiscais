@@ -4,8 +4,9 @@
 > `spec-docs/`. Sucede o **[`SPEC_FATIAS_V1.md`](SPEC_FATIAS_V1.md)** (v1 **fechado** e que será
 > **substituído** — ver §1). Memória pareada de handoff: `conferencia-v2-spec-junho-2026`.
 >
-> **Status global (2026-06-26): C0–C4 mergeadas** (PRs #13 / #15 / #14 / #17 / #18); **C5 (pipeline)
-> feita** (`feat/conferencia-pipeline`, em PR); **falta só C6 (API/Web + flip + remoção do v1).**
+> **Status global (2026-06-26): C0–C5 mergeadas** (PRs #13 / #15 / #14 / #17 / #18 / #20); **C6
+> (API/Web + flip + remoção do v1) feita** (`feat/conferencia-api-web`, em PR). **v2 completo no
+> código — falta só o provisionamento de runtime (secrets da rpa_ia + cron no GoDeploy, §10).**
 > Origem:
 > 4 fluxos n8n em `fluxos_n8n/` (Gocase: Influs, Assessoria, Soma, Embaixador) portados para o
 > sistema, **melhores/mais rápidos**, e generalizados para outras marcas (Gobeaute) via IA de
@@ -303,8 +304,8 @@ Tudo sob `src/conferencia/`, com I/O nas bordas atrás de interface (testável c
 | **C2** | **Mapeador de colunas (AI Proxy)** | header→papéis + confiança + cache + "perguntar só se incerto". Borda AI Proxy (fake nos testes). | C0 | ✅ PR #14 mergeada — `src/conferencia/mapeamento/` |
 | **C3** | **Extração de campos (OCR + AI Proxy)** | reusa `ocr-worker.ts`; cliente AI Proxy (port de `llm.ts`); prompt §5.4 → `CamposNfBrutos`; cache por hash. | C0 | ✅ PR #17 mergeada — `src/conferencia/extracao/` + `test/conferencia-extracao.test.ts` |
 | **C4** | **Drive + identidade de serviço** | credencial **`rpa_ia` (refresh token → access token)** com escopos `spreadsheets`+`drive.readonly`; `open?id=`→fileId; baixar bytes; fallback SSRF. | C0 | ✅ PR #18 mergeada — `src/conferencia/drive/` |
-| **C5** | **Pipeline de conferência (aditivo)** | ler base+form, normalizar/filtrar/**merge por cupom**, processar cupom (C4→C3→C1), depois Soma; idempotência pela coluna de status; lote (`batchLimit`). `LeitorPlanilha` REST. **Não remove nada** (strangler-fig). | C0 (C1–C4 via interface) | ✅ feito (`feat/conferencia-pipeline`) |
-| **C6** | **API + Web + flip + remoção do v1** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard, **cron** que chama `processarPerfil` em lote. **Remove TODO o v1 genérico** (domínio + wiring API/web + login Google na UI; acesso via GoDeploy `authenticated`). | C0, C5 | ⬜ |
+| **C5** | **Pipeline de conferência (aditivo)** | ler base+form, normalizar/filtrar/**merge por cupom**, processar cupom (C4→C3→C1), depois Soma; idempotência pela coluna de status; lote (`batchLimit`). `LeitorPlanilha` REST. **Não remove nada** (strangler-fig). | C0 (C1–C4 via interface) | ✅ PR #20 mergeada — `src/conferencia/pipeline/` + `src/conferencia/sheets/` |
+| **C6** | **API + Web + flip + remoção do v1** | perfis (ver/editar), iniciar conferência (marca + mês + link do form), confirmação de mapeamento, dashboard, **cron** que chama `processarPerfil` em lote. **Remove TODO o v1 genérico** (domínio + wiring API/web + login Google na UI; acesso via GoDeploy `authenticated`). | C0, C5 | ✅ feito (`feat/conferencia-api-web`, em PR) |
 
 **Ordem:** C0 → (C1, C2, C3, C4 em paralelo) → C5 → C6.
 **Gate por fatia:** `npm run typecheck` 0 erros · `npm test` verde · `npm run build` ok.
@@ -332,6 +333,31 @@ verdade:** publicar consent screen + gerar `GOOGLE_OAUTH_REFRESH_TOKEN` da `rpa_
 - Sub-barril `pipeline/index.ts` (não toca o top-level). **Persistência de job/progresso (`conf_jobs`/
   `conf_linhas`) e o cron ficam na C6** (a idempotência da C5 já é pela planilha).
 
+**Onde aterrissou — C6** (`feat/conferencia-api-web`, gate verde · 4 testes novos · **flip + remoção do v1**):
+- **API/Worker** (`src/api/`): `worker.ts` (entrypoint do GoDeploy, roteamento manual sem framework) —
+  `GET /api/perfis`, `POST /api/conferencias` (iniciar), `GET /api/conferencias/:id` (progresso/dashboard),
+  `POST /api/conferencias/:id/mapeamento` (confirmar mapa), **`POST /tasks/processar`** (cron assinado
+  `X-Godeploy-Cron`) e `POST /api/processar` (gatilho manual). `conferencia-processar.ts` —
+  `avancarConfJobs`/`avancarConfJob` (1 lote de `processarPerfil` por tick, **falha isolada por job**),
+  `criarConferencia`, `confirmarMapeamento`, `decidirStatusJob` (puro, testado). `conferencia-deps.ts` —
+  costura C2–C5 com a identidade `rpa_ia` (`CredencialRefreshToken` → `LeitorPlanilhaRest` + `BaixadorDrive`
+  + OCR/AI Proxy + `MapeadorColunasIa`); `loteConferencia` (`CONF_BATCH_SIZE`, default 25).
+- **Persistência** (`src/conferencia/persistencia/`): `jobs-db.ts` (`conf_jobs`/`conf_linhas` sobre
+  `env.DB`: criar/avançar/progresso agregado por status, SOMA vira "ajustes"), `repositorio-db.ts`
+  (`RepositorioPerfisDb`: marcas/perfis/`form_sheet_url`/cache de mapa em `conf_mapas`). `schema.ts`
+  ajustado (separa `conf_mapas`; `conf_jobs` ganha `form_sheet_url`/`pendencia_mapa`/`erro`).
+- **Web SPA** (`src/web/`): fluxo perfil → mês + link do form → dashboard (poll 2,5 s), com tela de
+  **confirmação de mapeamento** quando a IA fica incerta. **Sem login Google** (gated pelo GoDeploy
+  `authenticated`, decisão 11).
+- **Flip + remoção do v1 genérico (strangler-fig, §1):** removidos `src/api/{db,deps,google,processar}.ts`,
+  `src/{auth,pipeline,queue}/*`, `src/extract/{index,montar,nota-extractor,texto,xml}.ts`, `src/index.ts`,
+  `src/types/{google,job,linha,nota}.ts` e os testes do v1. Mantidos/reusados: `src/sheets/colunas.ts`
+  + `spreadsheet-id.ts` (helpers puros), `src/download/file-fetcher-workers.ts` (fallback de download),
+  parsing F1 e todo o `src/conferencia/`. **Estado final: sem fluxo genérico.**
+- **Pendência p/ rodar de verdade:** provisionar runtime — secrets da `rpa_ia`
+  (`GOOGLE_OAUTH_REFRESH_TOKEN`/`CLIENT_ID`/`CLIENT_SECRET`) + criar o cron do GoDeploy apontando
+  `/tasks/processar` (numa versão já publicada). Ver §10.
+
 ---
 
 ## 10. Pendências / dados a obter
@@ -346,6 +372,9 @@ verdade:** publicar consent screen + gerar `GOOGLE_OAUTH_REFRESH_TOKEN` da `rpa_
       `CLIENT_SECRET` do app OAuth da rpa_ia) como secrets. Confirmar que a `rpa_ia` tem leitura na
       pasta das NFs e escrita nas planilhas-base e de formulário.
 - [ ] Confirmar comportamento de **criar coluna de saída** na UI (aviso ao usuário?).
+- [ ] **Criar o cron do GoDeploy** (`createCronJob`) apontando `POST /tasks/processar` (com
+      `GODEPLOY_CRON_KEY`), depois de publicar a versão com a C6. Cada tick avança um lote
+      (`CONF_BATCH_SIZE`, default 25) de cada job ativo.
 
 ---
 

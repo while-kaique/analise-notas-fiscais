@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { criarLeitorPdf } from '../src/extract/index.js';
+import { criarLeitorPdf } from '../src/extract/ocr-worker.js';
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 

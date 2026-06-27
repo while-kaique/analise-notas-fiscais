@@ -17,21 +17,30 @@ export const STATUS_BLOQUEANTES_PADRAO = [
 export const MARGEM_PARCIAL_CENTAVOS = 3000;
 
 /**
- * Monta as colunas de saída padronizadas (spec §4.5). `sufixo` distingue frentes que
- * dividem o mesmo formulário (`(influ)`/`(assessoria)`); vazio para o Embaixador.
- * `Valor Esperado` é compartilhado (não recebe sufixo).
+ * Prefixo das colunas que o bot CRIA/ESCREVE no formulário. Garante que os nomes nunca
+ * colidam com colunas nativas do formulário (ex.: "Status", "Observações", "N° do chamado"):
+ * assim o bot não sobrescreve dados do usuário (§4) e a idempotência (`merge.ts`) lê a SUA
+ * própria coluna de status — e não a do formulário, que já vem preenchida (senão pularia tudo).
+ */
+export const PREFIXO_COLUNA_SAIDA = 'bot_';
+
+/**
+ * Monta as colunas de saída padronizadas (spec §4.5), todas com {@link PREFIXO_COLUNA_SAIDA}.
+ * `sufixo` distingue frentes que dividem o mesmo formulário (`(influ)`/`(assessoria)`); vazio
+ * para o Embaixador. `Valor Esperado` é compartilhado (não recebe sufixo).
  */
 export function colunasSaidaPadrao(sufixo = ''): ColunasSaida {
   const s = sufixo ? ` ${sufixo}` : '';
+  const p = PREFIXO_COLUNA_SAIDA;
   return {
-    status: `Status${s}`,
-    cnpjTomador: `CNPJ Tomador${s}`,
-    valorNf: `Valor NF${s}`,
-    retroativo: `Retroativo${s}`,
-    valorEsperado: 'Valor Esperado',
-    valorTotal: `Valor Total${s}`,
-    dataNf: `Data NF${s}`,
-    numeroNf: `Número NF${s}`,
+    status: `${p}Status${s}`,
+    cnpjTomador: `${p}CNPJ Tomador${s}`,
+    valorNf: `${p}Valor NF${s}`,
+    retroativo: `${p}Retroativo${s}`,
+    valorEsperado: `${p}Valor Esperado`,
+    valorTotal: `${p}Valor Total${s}`,
+    dataNf: `${p}Data NF${s}`,
+    numeroNf: `${p}Número NF${s}`,
   };
 }
 

@@ -79,7 +79,7 @@ describe('montarLinhas', () => {
       reg(4, { 'Cupom?': 'LOURDES', Link: 'https://drive/open?id=BBB' }), // excluído
       reg(5, { 'Cupom?': 'Maria', Link: '' }), // sem link → ignorado
       reg(6, { 'Cupom?': 'SEMBASE', Link: 'https://drive/open?id=CCC' }), // sem base → ignorado
-      reg(7, { 'Cupom?': 'Maria', Link: 'https://drive/open?id=DDD', 'Status (influ)': 'Aprovado' }), // já processado
+      reg(7, { 'Cupom?': 'Maria', Link: 'https://drive/open?id=DDD', 'bot_Status (influ)': 'Aprovado' }), // já processado
     ];
     const linhas = montarLinhas(form, indice, mapa, frente, '05/2026');
     expect(linhas).toHaveLength(1);
@@ -124,10 +124,10 @@ describe('escrita', () => {
     const escritas = resultadoParaEscritas(r, cols, 7);
     const porColuna = Object.fromEntries(escritas.map((e) => [e.coluna, e.valor]));
     expect(escritas.every((e) => e.numeroLinha === 7)).toBe(true);
-    expect(porColuna['Status (influ)']).toBe('Aprovado');
-    expect(porColuna['Valor NF (influ)']).toBe('100,00');
-    expect(porColuna['Data NF (influ)']).toBe('25/06/2026');
-    expect(porColuna['Número NF (influ)']).toBe('42');
+    expect(porColuna['bot_Status (influ)']).toBe('Aprovado');
+    expect(porColuna['bot_Valor NF (influ)']).toBe('100,00');
+    expect(porColuna['bot_Data NF (influ)']).toBe('25/06/2026');
+    expect(porColuna['bot_Número NF (influ)']).toBe('42');
 
     const semCampos: ResultadoConferencia = {
       cupom: 'X',
@@ -138,8 +138,8 @@ describe('escrita', () => {
       valorTotalCentavos: 5000,
     };
     const e2 = Object.fromEntries(resultadoParaEscritas(semCampos, cols, 3).map((e) => [e.coluna, e.valor]));
-    expect(e2['Status (influ)']).toBe('Sem NF anexada');
-    expect(e2['CNPJ Tomador (influ)']).toBe('');
-    expect(e2['Data NF (influ)']).toBe('');
+    expect(e2['bot_Status (influ)']).toBe('Sem NF anexada');
+    expect(e2['bot_CNPJ Tomador (influ)']).toBe('');
+    expect(e2['bot_Data NF (influ)']).toBe('');
   });
 });

@@ -25,6 +25,7 @@ const ROTULO_STATUS = {
   SEM_NF: "Sem NF anexada",
   NAO_LEGIVEL: "Não foi possível ler a NF",
   CNPJ_DIFERENTE: "CNPJ diferente",
+  SEM_BASE: "Cupom não encontrado na base",
 };
 // Ordem fixa de exibição (do melhor ao pior, depois os especiais).
 const ORDEM_STATUS = [
@@ -34,6 +35,7 @@ const ORDEM_STATUS = [
   "CNPJ_DIFERENTE",
   "SEM_NF",
   "NAO_LEGIVEL",
+  "SEM_BASE",
 ];
 
 async function pedirJson(url, opcoes) {
@@ -229,6 +231,7 @@ const CLASSE_STATUS = {
   CNPJ_DIFERENTE: "ruim",
   SEM_NF: "neutro",
   NAO_LEGIVEL: "ruim",
+  SEM_BASE: "ruim",
 };
 
 let ultimaAtividadeId = 0; // cursor incremental (maior id já trazido)

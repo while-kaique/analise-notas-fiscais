@@ -193,6 +193,16 @@ já no F0). Registre a escolha em §11 ao implementar.
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-27 (Status `SEM_BASE` — resposta sem correspondência na base)** — respostas do
+  formulário com cupom+link mas **sem valor esperado na base do mês** deixavam de ser registradas:
+  `montarLinhas` fazia `continue` (herdado do n8n) e, com 0 linhas, `processarFrente` nem criava as
+  colunas de saída. Agora essas respostas viram uma linha `semBase` → status **`SEM_BASE`** ("Cupom não
+  encontrado na base"), escrito na planilha **sem baixar/OCR a NF** (decisão do usuário: marcar, não
+  gastar OCR à toa). Mudanças: novo valor no enum `StatusConferencia` + `ROTULO_STATUS` + `ORDEM_APROVACAO`
+  (piso, não entra na Soma); `LinhaParaProcessar.semBase`; `escrita.ts` deixa os campos monetários em
+  branco p/ `SEM_BASE`; frontend (rótulo/ordem/cor). Idempotência: ao gravar o status, a linha é pulada
+  no próximo tick (mesma regra das demais). **Efeito colateral útil:** rodar com o mês errado agora mostra
+  todas as linhas como `SEM_BASE` em vez de concluir com 0 silencioso. **Nenhuma dependência nova.**
 - **2026-06-27 (Feed de atividades em tempo real na tela)** — a tela de progresso passa a mostrar um
   **feed cronológico de eventos** ("rolando"), além das métricas agregadas. **Sem dependência nova.**
   - **Persistência:** nova tabela `conf_atividades` (append-only) no `env.DB` (`persistencia/schema.ts`,

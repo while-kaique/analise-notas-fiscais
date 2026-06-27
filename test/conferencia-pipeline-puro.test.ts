@@ -78,7 +78,6 @@ describe('montarLinhas', () => {
       reg(3, { 'Cupom?': 'LARISSA', Link: 'https://drive/open?id=AAA2' }), // dup cupom → ignorado
       reg(4, { 'Cupom?': 'LOURDES', Link: 'https://drive/open?id=BBB' }), // excluído
       reg(5, { 'Cupom?': 'Maria', Link: '' }), // sem link → ignorado
-      reg(6, { 'Cupom?': 'SEMBASE', Link: 'https://drive/open?id=CCC' }), // sem base → ignorado
       reg(7, { 'Cupom?': 'Maria', Link: 'https://drive/open?id=DDD', 'bot_Status (influ)': 'Aprovado' }), // já processado
     ];
     const linhas = montarLinhas(form, indice, mapa, frente, '05/2026');
@@ -88,6 +87,21 @@ describe('montarLinhas', () => {
     expect(linhas[0]?.linha.cupomOriginal).toBe('Larissa');
     expect(linhas[0]?.linha.valorEsperadoCentavos).toBe(10000);
     expect(linhas[0]?.linha.idBase).toBe('1');
+    expect(linhas[0]?.semBase).toBeFalsy();
+  });
+
+  it('resposta sem correspondência na base vira linha semBase (não some)', () => {
+    const form = [
+      reg(2, { 'Cupom?': 'Larissa', Link: 'https://drive/open?id=AAA1' }), // tem base
+      reg(6, { 'Cupom?': 'SemBase', Link: 'https://drive/open?id=CCC' }), // sem base no mês
+    ];
+    const linhas = montarLinhas(form, indice, mapa, frente, '05/2026');
+    expect(linhas).toHaveLength(2);
+    const semBase = linhas.find((l) => l.semBase);
+    expect(semBase?.numeroLinha).toBe(6);
+    expect(semBase?.linha.cupom).toBe('SEMBASE');
+    expect(semBase?.linha.cupomOriginal).toBe('SemBase');
+    expect(semBase?.linha.valorEsperadoCentavos).toBe(0);
   });
 
   it('sem cupom/link mapeado → vazio', () => {
@@ -141,5 +155,20 @@ describe('escrita', () => {
     expect(e2['bot_Status (influ)']).toBe('Sem NF anexada');
     expect(e2['bot_CNPJ Tomador (influ)']).toBe('');
     expect(e2['bot_Data NF (influ)']).toBe('');
+
+    // SEM_BASE: marca o status e deixa os valores em branco (nada a comparar).
+    const semBase: ResultadoConferencia = {
+      cupom: 'Z',
+      cupomOriginal: 'Z',
+      status: 'SEM_BASE',
+      valorEsperadoCentavos: 0,
+      retroativoCentavos: 0,
+      valorTotalCentavos: 0,
+    };
+    const e3 = Object.fromEntries(resultadoParaEscritas(semBase, cols, 9).map((e) => [e.coluna, e.valor]));
+    expect(e3['bot_Status (influ)']).toBe('Cupom não encontrado na base');
+    expect(e3['bot_Valor Esperado']).toBe(''); // valorEsperado não leva sufixo (seed.ts)
+    expect(e3['bot_Valor Total (influ)']).toBe('');
+    expect(e3['bot_Retroativo (influ)']).toBe('');
   });
 });

@@ -31,6 +31,9 @@ export function classificarStatus(diffCentavos: number, margemParcialCentavos: n
  * Soma (spec §4.6: "se melhora, grava") para decidir se um novo status supera o atual.
  */
 export const ORDEM_APROVACAO: Readonly<Record<StatusConferencia, number>> = {
+  // SEM_BASE = resposta sem correspondência na base (não é desfecho de aprovação);
+  // fica no piso e não participa da Soma (cupom sem base não entra no merge).
+  SEM_BASE: 0,
   SEM_NF: 0,
   NAO_LEGIVEL: 1,
   CNPJ_DIFERENTE: 2,

@@ -4,9 +4,10 @@
 > `spec-docs/`. Sucede o **[`SPEC_FATIAS_V1.md`](SPEC_FATIAS_V1.md)** (v1 **fechado** e que será
 > **substituído** — ver §1). Memória pareada de handoff: `conferencia-v2-spec-junho-2026`.
 >
-> **Status global (2026-06-26): C0–C5 mergeadas** (PRs #13 / #15 / #14 / #17 / #18 / #20); **C6
-> (API/Web + flip + remoção do v1) feita** (`feat/conferencia-api-web`, em PR). **v2 completo no
-> código — falta só o provisionamento de runtime (secrets da rpa_ia + cron no GoDeploy, §10).**
+> **Status global (2026-06-27): C0–C6 mergeadas** (PRs #13 / #15 / #14 / #17 / #18 / #20 / **#21**).
+> **v2 completo no código E DEPLOYADO** — app GoDeploy `687dbb00` na **versão 7** (deploy de **JS
+> compilado**, ver §10), SPA nova no ar e cron `/tasks/processar` respondendo **202**. **Falta só 1
+> passo humano:** gerar o refresh token da `rpa_ia` e setar os 3 secrets `GOOGLE_OAUTH_*` (§10).
 > Origem:
 > 4 fluxos n8n em `fluxos_n8n/` (Gocase: Influs, Assessoria, Soma, Embaixador) portados para o
 > sistema, **melhores/mais rápidos**, e generalizados para outras marcas (Gobeaute) via IA de
@@ -354,9 +355,12 @@ verdade:** publicar consent screen + gerar `GOOGLE_OAUTH_REFRESH_TOKEN` da `rpa_
   `src/types/{google,job,linha,nota}.ts` e os testes do v1. Mantidos/reusados: `src/sheets/colunas.ts`
   + `spreadsheet-id.ts` (helpers puros), `src/download/file-fetcher-workers.ts` (fallback de download),
   parsing F1 e todo o `src/conferencia/`. **Estado final: sem fluxo genérico.**
-- **Pendência p/ rodar de verdade:** provisionar runtime — secrets da `rpa_ia`
-  (`GOOGLE_OAUTH_REFRESH_TOKEN`/`CLIENT_ID`/`CLIENT_SECRET`) + criar o cron do GoDeploy apontando
-  `/tasks/processar` (numa versão já publicada). Ver §10.
+- **Deploy (2026-06-27):** publicado no app `687dbb00` como **versão 7**. **Lição:** o bundler do
+  GoDeploy **não resolve imports `.js`→`.ts`** ao bundlar o source (cron quebrava com
+  `Invalid module specifier "../sheets/spreadsheet-id.js"`). **Solução:** deployar **JS COMPILADO** —
+  `npm run build` (→ `dist/`) e subir `dist/**/*.js` + `package.json` + os assets web na raiz
+  (`index.html`/`app.js`/`styles.css`), com `entrypoint = dist/api/worker.js` e `assets` SPA. Cron
+  `/tasks/processar` passou a responder **202**; `GODEPLOY_CRON_KEY` setado.
 
 ---
 
@@ -366,15 +370,17 @@ verdade:** publicar consent screen + gerar `GOOGLE_OAUTH_REFRESH_TOKEN` da `rpa_
       (`src/conferencia/perfis/seed.ts`, perfis marcados `TODO`).
 - [x] **Segredos do AI Proxy** (`LLM_BASE_URL`/`API_PROXY_TOKEN`/`LLM_MODEL`/`LLM_PROVIDER`)
       cadastrados no app `687dbb00` em 2026-06-26 (via `setAppSecret`).
-- [ ] **Identidade de serviço `rpa_ia` (decisão 11):** publicar a tela de consentimento OAuth
-      ("Em produção"); fazer o consentimento **offline 1x** com `rpa_ia@gocase.com` (escopos
-      `spreadsheets` + `drive.readonly`); cadastrar `GOOGLE_OAUTH_REFRESH_TOKEN` (+ `CLIENT_ID`/
-      `CLIENT_SECRET` do app OAuth da rpa_ia) como secrets. Confirmar que a `rpa_ia` tem leitura na
-      pasta das NFs e escrita nas planilhas-base e de formulário.
+- [x] **Cron do GoDeploy** apontando `POST /tasks/processar` (a cada minuto) **já existe e funciona**
+      (responde 202 desde a versão 7, 2026-06-27); `GODEPLOY_CRON_KEY` setado. Cada tick avança um
+      lote (`CONF_BATCH_SIZE`, default 25) de cada job ativo. _(Enquanto a `rpa_ia` não estiver
+      configurada, cada tick loga — capturado, inofensivo — "Identidade de serviço não configurada".)_
+- [ ] **⚠️ ÚNICO BLOQUEIO p/ rodar — Identidade de serviço `rpa_ia` (decisão 11):** publicar a tela
+      de consentimento OAuth ("Em produção"); fazer o consentimento **offline 1x** com
+      `rpa_ia@gocase.com` (escopos `spreadsheets` + `drive.readonly`); cadastrar
+      `GOOGLE_OAUTH_REFRESH_TOKEN` + `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` (do app
+      OAuth da rpa_ia) como secrets no `687dbb00`. Confirmar que a `rpa_ia` tem leitura na pasta das
+      NFs e escrita nas planilhas-base e de formulário. **Passo humano — não dá p/ automatizar.**
 - [ ] Confirmar comportamento de **criar coluna de saída** na UI (aviso ao usuário?).
-- [ ] **Criar o cron do GoDeploy** (`createCronJob`) apontando `POST /tasks/processar` (com
-      `GODEPLOY_CRON_KEY`), depois de publicar a versão com a C6. Cada tick avança um lote
-      (`CONF_BATCH_SIZE`, default 25) de cada job ativo.
 
 ---
 

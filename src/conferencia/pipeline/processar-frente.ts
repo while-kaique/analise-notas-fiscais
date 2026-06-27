@@ -24,6 +24,7 @@ import { resolverMapeamento } from '../mapeamento/index.js';
 import { indexarBase, montarLinhas, type IndiceBase } from './merge.js';
 import { resultadoParaEscritas } from './escrita.js';
 import { BATCH_PADRAO, type DepsPipeline, type OpcoesProcessamento, type ResultadoFrente } from './tipos.js';
+import { log } from '../../obs/log.js';
 
 const PAPEL_LINK_ENTRADA: Readonly<Record<PapelLinkNf, PapelColunaEntrada>> = {
   influencer: 'linkNf_influencer',
@@ -46,10 +47,12 @@ export async function processarFrente(
   opts: OpcoesProcessamento = {},
 ): Promise<ResultadoFrente> {
   const { frente } = ctx;
+  const flog = log.filho({ frente: frente.tipo });
   // Frente sem config de extração (ex.: SOMA) não passa por aqui.
   if (!frente.colunasSaida || !frente.papelLinkNf) {
     return { frente: frente.tipo, resultados: [], precisaConfirmarMapeamento: false };
   }
+  flog.debug('frente: iniciando');
 
   const cabecalhos = await deps.leitor.lerCabecalho(ctx.formRef);
   const entrada: EntradaMapeamento = {
@@ -63,6 +66,7 @@ export async function processarFrente(
     entrada,
   );
   if (resol.avaliacao.precisaConfirmar) {
+    flog.warn('mapeamento incerto: precisa confirmação', { origem: resol.origem });
     return { frente: frente.tipo, resultados: [], precisaConfirmarMapeamento: true, origemMapa: resol.origem };
   }
 
@@ -72,6 +76,7 @@ export async function processarFrente(
 
   const limite = opts.batchLimit ?? BATCH_PADRAO;
   const linhas = montarLinhas(formReg, indice, resol.mapeamento, frente, ctx.mesAlvo).slice(0, limite);
+  flog.info('cupons pendentes', { aProcessar: linhas.length, baseRegs: baseReg.length, formRegs: formReg.length, origemMapa: resol.origem });
   if (linhas.length === 0) {
     return { frente: frente.tipo, resultados: [], precisaConfirmarMapeamento: false, origemMapa: resol.origem };
   }
@@ -84,6 +89,12 @@ export async function processarFrente(
   for (const item of linhas) {
     const resultado = await processarLinha(item.linha, ctx.marca, indice, deps);
     resultados.push(resultado);
+    // Cupom + status (operacional); nunca valores/CNPJ (dados fiscais — §6).
+    flog.debug('cupom processado', {
+      cupom: resultado.cupom,
+      status: resultado.status,
+      ...(resultado.erro ? { erro: resultado.erro } : {}),
+    });
     escritas.push(...resultadoParaEscritas(resultado, frente.colunasSaida, item.numeroLinha));
   }
   await deps.leitor.escrever(ctx.formRef, escritas);

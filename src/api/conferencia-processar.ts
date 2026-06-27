@@ -26,6 +26,7 @@ import {
   loteConferencia,
   type DepsConferencia,
 } from './conferencia-deps.js';
+import { log, msgErro, stackErro } from '../obs/log.js';
 
 /** `papelLinkNf` → papel de coluna de entrada (igual ao usado no pipeline). */
 const PAPEL_LINK_ENTRADA: Readonly<Record<string, PapelColunaEntrada>> = {
@@ -47,17 +48,24 @@ export async function avancarConfJobs(env: Env): Promise<void> {
   const deps = montarDepsConferencia(env);
   await deps.repo.inicializar();
   const jobs = await confJobsAtivos(env.DB);
+  if (jobs.length === 0) {
+    log.debug('cron tick: nenhum job ativo');
+    return;
+  }
+  log.info('cron tick', { jobsAtivos: jobs.length });
   for (const job of jobs) {
     try {
       await avancarConfJob(env, job, deps);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await atualizarStatusConfJob(env.DB, job.id, 'FALHOU', { erro: msg }).catch(() => {});
+      log.error('job falhou', { job: job.id, perfil: job.perfilId, erro: stackErro(e) });
+      await atualizarStatusConfJob(env.DB, job.id, 'FALHOU', { erro: msgErro(e) }).catch(() => {});
     }
   }
 }
 
 async function avancarConfJob(env: Env, job: ConfJob, deps: DepsConferencia): Promise<void> {
+  const jlog = log.filho({ job: job.id });
+  const inicio = Date.now();
   const perfil = await deps.repo.obterPerfil(job.perfilId);
   if (!perfil) {
     await atualizarStatusConfJob(env.DB, job.id, 'FALHOU', {
@@ -77,6 +85,8 @@ async function avancarConfJob(env: Env, job: ConfJob, deps: DepsConferencia): Pr
     await atualizarStatusConfJob(env.DB, job.id, 'PROCESSANDO');
   }
 
+  jlog.info('avançando job', { perfil: perfil.nome, marca: marca.nome, mes: job.mesAlvo });
+
   // Usa o link do formulário do PRÓPRIO job (decisão 4: 1 form por perfil, trocado/mês).
   const perfilComForm: Perfil = { ...perfil, formSheetUrl: job.formSheetUrl };
   const resumo = await processarPerfil(perfilComForm, marca, job.mesAlvo, deps, {
@@ -87,15 +97,23 @@ async function avancarConfJob(env: Env, job: ConfJob, deps: DepsConferencia): Pr
     if (f.resultados.length > 0) {
       await gravarLinhasConferencia(env.DB, job.id, f.frente, f.resultados);
     }
+    jlog.info('frente concluída', {
+      frente: f.frente,
+      cupons: f.resultados.length,
+      confirmarMapa: f.precisaConfirmarMapeamento,
+      origemMapa: f.origemMapa,
+    });
   }
 
   const decisao = decidirStatusJob(resumo);
   if (decisao.status === 'AGUARDANDO_MAPEAMENTO' && decisao.frenteParaConfirmar) {
     const pendencia = await montarPendencia(deps, perfilComForm, decisao.frenteParaConfirmar);
     await atualizarStatusConfJob(env.DB, job.id, 'AGUARDANDO_MAPEAMENTO', { pendencia });
+    jlog.warn('job pausado: aguardando confirmação de mapeamento', { frente: decisao.frenteParaConfirmar });
     return;
   }
   await atualizarStatusConfJob(env.DB, job.id, decisao.status, { pendencia: null });
+  jlog.info('job avançado', { status: decisao.status, ms: Date.now() - inicio });
 }
 
 /** Monta o payload de confirmação: cabeçalhos do form + mapa proposto pela IA + papéis. */
@@ -137,6 +155,7 @@ export async function criarConferencia(
 
   const jobId = crypto.randomUUID();
   await criarConfJob(env.DB, { id: jobId, perfilId, mesAlvo, formSheetUrl: formUrl });
+  log.info('conferência criada', { job: jobId, perfil: perfil.nome, mes: mesAlvo });
   return { jobId };
 }
 

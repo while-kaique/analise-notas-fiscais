@@ -23,6 +23,8 @@ import {
 } from '../conferencia/extracao/index.js';
 import { MapeadorColunasIa } from '../conferencia/mapeamento/index.js';
 import { RepositorioPerfisDb } from '../conferencia/persistencia/repositorio-db.js';
+import { instrumentarDeps } from '../obs/instrumentar-deps.js';
+import { log } from '../obs/log.js';
 
 /** Limites de download das NFs (20 MB / 60 s — PDFs de NF são pequenos). */
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
@@ -80,5 +82,5 @@ export function montarDepsConferencia(env: Env): DepsConferencia {
   const mapeador = new MapeadorColunasIa(clienteLlm);
   const repo = new RepositorioPerfisDb(env.DB);
 
-  return { leitor, baixador, extracao, mapeador, cacheMapa: repo, repo };
+  return instrumentarDeps({ leitor, baixador, extracao, mapeador, cacheMapa: repo, repo }, log);
 }

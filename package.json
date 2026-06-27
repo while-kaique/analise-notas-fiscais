@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "echo \"(dev será definido na fatia da API/web)\" && exit 0"
+    "build:local": "tsc -p tsconfig.json && node -e \"require('fs').mkdirSync('.dev',{recursive:true})\"",
+    "dev": "npm run build && node --env-file=.env dist/local/server.js"
   },
   "keywords": [
     "nota-fiscal",

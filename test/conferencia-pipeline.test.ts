@@ -158,8 +158,8 @@ describe('processarFrente (INFLUS)', () => {
 
     // gravou de volta no formulário (rótulo pt-BR na coluna configurada)
     const linha2 = (await leitor.lerRegistros(formRef)).find((r) => r.numeroLinha === 2);
-    expect(linha2?.valores['Status (influ)']).toBe('Aprovado');
-    expect(leitor.cab.get('FORMID')).toContain('Valor NF (influ)');
+    expect(linha2?.valores['bot_Status (influ)']).toBe('Aprovado');
+    expect(leitor.cab.get('FORMID')).toContain('bot_Valor NF (influ)');
   });
 
   it('é idempotente: reprocessar não refaz linhas já com status', async () => {

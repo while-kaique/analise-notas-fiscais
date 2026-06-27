@@ -52,14 +52,14 @@ describe('seed de marcas/perfis', () => {
     expect(f?.papelLinkNf).toBe('influencer');
     expect(f?.exclusoesCupom).toContain('LOURDES');
     expect(f?.exclusoesCupom).toContain('ANAJULIAMELO');
-    expect(f?.colunasSaida?.status).toBe('Status (influ)');
+    expect(f?.colunasSaida?.status).toBe('bot_Status (influ)');
   });
 
   it('ASSESSORIA lê a coluna da assessoria e exclui STEVIEGAS', () => {
     const f = frente('gocase-influencers', 'ASSESSORIA');
     expect(f?.papelLinkNf).toBe('assessoria');
     expect(f?.exclusoesCupom).toEqual(['STEVIEGAS']);
-    expect(f?.colunasSaida?.status).toBe('Status (assessoria)');
+    expect(f?.colunasSaida?.status).toBe('bot_Status (assessoria)');
   });
 
   it('SOMA não baixa NF nem tem colunas próprias (escreve nos status influ/assessoria)', () => {
@@ -83,17 +83,17 @@ describe('seed de marcas/perfis', () => {
 describe('colunasSaidaPadrao', () => {
   it('aplica o sufixo e mantém "Valor Esperado" compartilhado', () => {
     const influ = colunasSaidaPadrao('(influ)');
-    expect(influ.status).toBe('Status (influ)');
-    expect(influ.cnpjTomador).toBe('CNPJ Tomador (influ)');
-    expect(influ.valorTotal).toBe('Valor Total (influ)');
-    expect(influ.valorEsperado).toBe('Valor Esperado');
+    expect(influ.status).toBe('bot_Status (influ)');
+    expect(influ.cnpjTomador).toBe('bot_CNPJ Tomador (influ)');
+    expect(influ.valorTotal).toBe('bot_Valor Total (influ)');
+    expect(influ.valorEsperado).toBe('bot_Valor Esperado');
   });
 
-  it('sem sufixo (Embaixador) gera nomes limpos', () => {
+  it('sem sufixo (Embaixador) gera nomes com prefixo bot_', () => {
     const e = colunasSaidaPadrao();
-    expect(e.status).toBe('Status');
-    expect(e.valorNf).toBe('Valor NF');
-    expect(e.numeroNf).toBe('Número NF');
+    expect(e.status).toBe('bot_Status');
+    expect(e.valorNf).toBe('bot_Valor NF');
+    expect(e.numeroNf).toBe('bot_Número NF');
   });
 });
 

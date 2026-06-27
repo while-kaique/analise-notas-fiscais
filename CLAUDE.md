@@ -193,6 +193,14 @@ já no F0). Registre a escolha em §11 ao implementar.
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-27 (Colunas de saída com prefixo `bot_`)** — as colunas que o bot cria/escreve no
+  formulário passam a ter o prefixo `bot_` (`colunasSaidaPadrao` em `src/conferencia/perfis/seed.ts`).
+  Motivo: o formulário Google já tem colunas nativas como `Status`/`Observações`/`N° do chamado`; sem
+  prefixo o bot escrevia por cima do `Status` do usuário (viola §4) **e** a idempotência (`merge.ts`)
+  lia esse `Status` já preenchido → pulava todas as linhas (`aProcessar=0`). Com `bot_*`, o
+  `garantirColunas` cria colunas próprias e a idempotência lê a do bot. Também: default de `LLM_MODEL`
+  no `.env.example` corrigido para `gpt-5.4-mini` (o AI Proxy GoGroup só serve gpt-5.x; modelo
+  inexistente retorna 502, não 400/404).
 - **2026-06-27 (Observabilidade + dev local)** — sistema de logs e servidor local, **sem dep nova**:
   - **Logs estruturados** em `src/obs/log.ts` (Workers-safe: só `console`/`Date`/`JSON`). Níveis
     debug/info/warn/error via `LOG_LEVEL`; `LOG_PRETTY=1` formata p/ humano (dev). `log.filho({...})`

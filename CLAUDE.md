@@ -193,6 +193,22 @@ já no F0). Registre a escolha em §11 ao implementar.
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-27 (Observabilidade + dev local)** — sistema de logs e servidor local, **sem dep nova**:
+  - **Logs estruturados** em `src/obs/log.ts` (Workers-safe: só `console`/`Date`/`JSON`). Níveis
+    debug/info/warn/error via `LOG_LEVEL`; `LOG_PRETTY=1` formata p/ humano (dev). `log.filho({...})`
+    para contexto (job/frente/request). **Regra §6:** nunca logar conteúdo fiscal (valor/CNPJ/nº/texto
+    do OCR) — só identificadores (cupom, fileId, hash, status, contagens, durações) e nomes de coluna.
+  - **Instrumentação por wrapper** (`src/obs/instrumentar-deps.ts`): `instrumentarDeps(deps, log)`
+    envolve as bordas de I/O (Sheets/Drive/OCR+IA/mapeador) com logs de duração/erro **sem tocar nas
+    implementações**; aplicado em `montarDepsConferencia`. Orquestração (job/frente/cupom) loga em
+    `conferencia-processar.ts` e `pipeline/processar-frente.ts`. `worker.ts` loga cada request (id+ms).
+  - **Servidor local** (`src/local/`): roda o MESMO worker em Node — `env.DB` sobre **`node:sqlite`**
+    (built-in, Node ≥22; tipos declarados localmente em `node-sqlite.d.ts`), segredos via
+    `node --env-file=.env`, assets da SPA com fallback, e um "cron" local (`setInterval`) chamando
+    `avancarConfJobs`. **`npm run dev`** (build + sobe em `:8787`). Não vai pro deploy (o bundle parte
+    de `dist/api/worker.js`, que não importa `src/local/` nem `node:*`). DB local em `.dev/` (gitignored).
+    _Atenção:_ OCR/AI Proxy precisam de `OCR_WORKER_*`/`LLM_BASE_URL`/`API_PROXY_TOKEN` no `.env` (só
+    no GoDeploy hoje) — sem eles o processamento local falha no passo de extração (Drive/Sheets funcionam).
 - **2026-06-26 (C6 — API/Web + flip + remoção do v1)** — fecha o v2 no código. Decisões da fatia:
   - **Worker stateless + cron** (CLAUDE.md §2/decisão GoDeploy): `worker.ts` roteia `/api/*` e
     `/tasks/processar` sem framework. `POST /api/conferencias` **persiste** o job (`conf_jobs` em

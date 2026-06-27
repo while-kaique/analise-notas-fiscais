@@ -55,6 +55,11 @@ export interface Env {
   CONF_BATCH_SIZE?: string;
   /** Chave injetada pela plataforma p/ autenticar a chamada do cron (POST /tasks/*). */
   GODEPLOY_CRON_KEY?: string;
+  // --- Observabilidade ---
+  /** Nível mínimo de log: `debug` | `info` | `warn` | `error` (default `info`). */
+  LOG_LEVEL?: string;
+  /** `1`/`true` → log formatado para leitura humana (dev local). Default JSON. */
+  LOG_PRETTY?: string;
   // --- OCR Worker: PDF → texto/OCR (F2) ---
   OCR_WORKER_URL?: string;
   OCR_WORKER_TOKEN?: string;

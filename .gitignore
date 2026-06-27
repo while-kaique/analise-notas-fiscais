@@ -8,6 +8,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# Dev local (SQLite do node:sqlite, artefatos do servidor local)
+.dev/
+
 # Variáveis de ambiente e segredos
 .env
 .env.*

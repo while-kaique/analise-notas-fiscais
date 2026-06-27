@@ -19,6 +19,7 @@ import {
 } from './conferencia-processar.js';
 import { progressoConfJob } from '../conferencia/persistencia/jobs-db.js';
 import type { TipoFrente } from '../conferencia/index.js';
+import { log, configurarLog, msgErro, stackErro } from '../obs/log.js';
 
 function json(dados: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(dados), {
@@ -39,7 +40,7 @@ function erro(mensagem: string, status: number): Response {
 function dispararAvanco(env: Env, ctx: ExecutionContext): void {
   ctx.waitUntil(
     avancarConfJobs(env).catch((e) => {
-      console.error('avancarConfJobs falhou:', e instanceof Error ? (e.stack ?? e.message) : e);
+      log.error('avancarConfJobs falhou', { erro: stackErro(e) });
     }),
   );
 }
@@ -164,14 +165,19 @@ async function rotear(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    configurarLog({ level: env.LOG_LEVEL, pretty: env.LOG_PRETTY === '1' || env.LOG_PRETTY === 'true' });
+    const inicio = Date.now();
+    const id = crypto.randomUUID().slice(0, 8);
+    const caminho = new URL(req.url).pathname;
     try {
-      return await rotear(req, env, ctx);
+      const resp = await rotear(req, env, ctx);
+      log.info('req', { id, m: req.method, path: caminho, status: resp.status, ms: Date.now() - inicio });
+      return resp;
     } catch (e) {
       // Loga o erro real (sem PII): um throw em `rotear` (DB/segredo ausente) viraria
       // só um 500 opaco — e, num tick de cron, `CronError: internal error` sem mensagem.
-      console.error('worker fetch erro:', e instanceof Error ? (e.stack ?? e.message) : e);
-      const msg = e instanceof Error ? e.message : 'Erro interno.';
-      return erro(msg, 500);
+      log.error('req erro', { id, m: req.method, path: caminho, ms: Date.now() - inicio, erro: stackErro(e) });
+      return erro(msgErro(e) || 'Erro interno.', 500);
     }
   },
   // O cron do GoDeploy NÃO é um handler `scheduled`: a plataforma faz POST em

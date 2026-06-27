@@ -171,6 +171,91 @@ export async function gravarLinhasConferencia(
   }
 }
 
+// ─────────────────────────────── Feed de atividades ───────────────────────────────
+
+/** Categorias de evento do feed (a tela "rolando"). */
+export type TipoAtividade =
+  | 'job_iniciado'
+  | 'cupom'
+  | 'soma'
+  | 'frente_concluida'
+  | 'aguardando_mapeamento'
+  | 'job_concluido'
+  | 'job_falhou';
+
+/** Um evento do feed já persistido (`id` é o cursor incremental do poll). */
+export interface Atividade {
+  id: number;
+  jobId: string;
+  frente?: TipoFrente;
+  cupom?: string;
+  tipo: TipoAtividade;
+  status?: StatusConferencia;
+  mensagem: string;
+  criadoEm: string;
+}
+
+/** Um evento a registrar (sem `id`/`jobId`/`criadoEm`, preenchidos na escrita). */
+export interface NovaAtividade {
+  frente?: TipoFrente;
+  cupom?: string;
+  tipo: TipoAtividade;
+  status?: StatusConferencia;
+  mensagem: string;
+}
+
+function mapearAtividade(linha: Record<string, unknown>): Atividade {
+  const frente = comoTexto(linha['frente']);
+  const cupom = comoTexto(linha['cupom']);
+  const status = comoTexto(linha['status']);
+  return {
+    id: comoInteiro(linha['id']),
+    jobId: comoTexto(linha['job_id']),
+    ...(frente ? { frente: frente as TipoFrente } : {}),
+    ...(cupom ? { cupom } : {}),
+    tipo: comoTexto(linha['tipo']) as TipoAtividade,
+    ...(status ? { status: status as StatusConferencia } : {}),
+    mensagem: comoTexto(linha['mensagem']),
+    criadoEm: comoTexto(linha['criado_em']),
+  };
+}
+
+/**
+ * Registra eventos do feed (append-only). Compartilham um único `criado_em` — a ordem
+ * fina é dada pelo `id` autoincremental, que também é o cursor do poll do frontend.
+ * **Nunca** recebe conteúdo fiscal (valor/CNPJ/nº/texto): só cupom, frente e status (§6).
+ */
+export async function registrarAtividades(
+  db: GoDeployDB,
+  jobId: string,
+  atividades: readonly NovaAtividade[],
+): Promise<void> {
+  if (atividades.length === 0) return;
+  const ts = agora();
+  for (const a of atividades) {
+    await db.exec(
+      `INSERT INTO conf_atividades (job_id, frente, cupom, tipo, status, mensagem, criado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [jobId, a.frente ?? null, a.cupom ?? null, a.tipo, a.status ?? null, a.mensagem, ts],
+    );
+  }
+}
+
+/** Lê o feed de um job a partir de um cursor (`desde` = maior `id` já visto pela tela). */
+export async function lerAtividades(
+  db: GoDeployDB,
+  jobId: string,
+  desde = 0,
+  limite = 300,
+): Promise<Atividade[]> {
+  const res = await db.query(
+    `SELECT id, job_id, frente, cupom, tipo, status, mensagem, criado_em
+       FROM conf_atividades WHERE job_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+    [jobId, desde, limite],
+  );
+  return linhasComoObjetos(res).map(mapearAtividade);
+}
+
 /** Devolutiva agregada de um job (a tela). Conta por status, exclui SOMA do total. */
 export interface ProgressoConferencia {
   jobId: string;

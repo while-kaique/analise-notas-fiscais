@@ -193,6 +193,21 @@ já no F0). Registre a escolha em §11 ao implementar.
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-27 (Feed de atividades em tempo real na tela)** — a tela de progresso passa a mostrar um
+  **feed cronológico de eventos** ("rolando"), além das métricas agregadas. **Sem dependência nova.**
+  - **Persistência:** nova tabela `conf_atividades` (append-only) no `env.DB` (`persistencia/schema.ts`,
+    aditiva/idempotente, criada no `repo.inicializar`). `id` autoincremental é o **cursor** do poll.
+    Funções `registrarAtividades`/`lerAtividades` em `jobs-db.ts`.
+  - **Emissão:** derivada do resumo de cada tick em `api/conferencia-processar.ts` (`atividadesDoResumo`,
+    pura/testada) — um evento por cupom (frente · cupom · status) + marcadores de frente, mais
+    job_iniciado/concluído/aguardando_mapeamento/falhou. Granularidade = **lote do cron** (não há SSE no
+    runtime stateless; o frontend dá a sensação de tempo real revelando um item por vez).
+  - **API:** `GET /api/conferencias/:id/atividades?desde=<cursor>` → `{ atividades, ultimoId }`.
+  - **Frontend** (`src/web/*`): seção "Atividades" no dashboard; poll incremental pelo cursor, buffer
+    revelado a cada ~130ms (efeito de rolagem), mais nova no topo, DOM capado em ~150 linhas, cor por
+    status, respeita `prefers-reduced-motion`.
+  - **Regra §6 reforçada:** o feed **nunca** carrega conteúdo fiscal (valor/CNPJ/nº/texto da NF) — só
+    cupom, frente, status e mensagens de erro acionáveis (mesma superfície já escrita na planilha/`conf_linhas`).
 - **2026-06-27 (Colunas de saída com prefixo `bot_`)** — as colunas que o bot cria/escreve no
   formulário passam a ter o prefixo `bot_` (`colunasSaidaPadrao` em `src/conferencia/perfis/seed.ts`).
   Motivo: o formulário Google já tem colunas nativas como `Status`/`Observações`/`N° do chamado`; sem

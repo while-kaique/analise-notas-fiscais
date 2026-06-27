@@ -17,7 +17,7 @@ import {
   criarConferencia,
   confirmarMapeamento,
 } from './conferencia-processar.js';
-import { progressoConfJob } from '../conferencia/persistencia/jobs-db.js';
+import { progressoConfJob, lerAtividades } from '../conferencia/persistencia/jobs-db.js';
 import type { TipoFrente } from '../conferencia/index.js';
 import { log, configurarLog, msgErro, stackErro } from '../obs/log.js';
 
@@ -92,6 +92,15 @@ async function progressoRota(env: Env, jobId: string): Promise<Response> {
   return json(progresso);
 }
 
+/** GET /api/conferencias/:id/atividades — feed incremental p/ a tela "rolando". */
+async function atividadesRota(env: Env, jobId: string, url: URL): Promise<Response> {
+  const desde = Number(url.searchParams.get('desde') ?? '0');
+  const cursor = Number.isFinite(desde) && desde > 0 ? Math.trunc(desde) : 0;
+  const atividades = await lerAtividades(env.DB, jobId, cursor);
+  const ultimoId = atividades.length > 0 ? atividades[atividades.length - 1]!.id : cursor;
+  return json({ atividades, ultimoId });
+}
+
 /** POST /api/conferencias/:id/mapeamento — confirma o mapa de colunas e religa o job. */
 async function confirmarRota(
   req: Request,
@@ -130,6 +139,9 @@ async function rotear(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
 
   if (metodo === 'GET' && pathname === '/api/perfis') return listarPerfisRota(env);
   if (metodo === 'POST' && pathname === '/api/conferencias') return iniciarRota(req, env, ctx);
+
+  const mAtv = pathname.match(/^\/api\/conferencias\/([A-Za-z0-9-]+)\/atividades$/);
+  if (metodo === 'GET' && mAtv?.[1]) return atividadesRota(env, mAtv[1], url);
 
   const mConf = pathname.match(/^\/api\/conferencias\/([A-Za-z0-9-]+)$/);
   if (metodo === 'GET' && mConf?.[1]) return progressoRota(env, mConf[1]);

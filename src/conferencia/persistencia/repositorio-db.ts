@@ -62,7 +62,7 @@ export class RepositorioPerfisDb implements RepositorioPerfis {
   /** Garante o schema e semeia marcas/perfis na 1ª vez (idempotente). */
   async inicializar(): Promise<void> {
     await initSchemaConferencia(this.#db);
-    const res = await this.#db.query('SELECT COUNT(*) AS n FROM conf_marcas');
+    const res = await this.#db.query('SELECT COUNT(*) AS n FROM conf_marcas', []);
     const n = comoInteiro(primeiraLinha(res)?.['n']);
     if (n > 0) return;
     await this.#semear();
@@ -100,7 +100,7 @@ export class RepositorioPerfisDb implements RepositorioPerfis {
   }
 
   async listarMarcas(): Promise<Marca[]> {
-    const res = await this.#db.query('SELECT * FROM conf_marcas ORDER BY nome ASC');
+    const res = await this.#db.query('SELECT * FROM conf_marcas ORDER BY nome ASC', []);
     return linhasComoObjetos(res).map(mapearMarca);
   }
 
@@ -113,7 +113,7 @@ export class RepositorioPerfisDb implements RepositorioPerfis {
   async listarPerfis(marcaId?: string): Promise<Perfil[]> {
     const res = marcaId
       ? await this.#db.query('SELECT * FROM conf_perfis WHERE marca_id = ? ORDER BY nome ASC', [marcaId])
-      : await this.#db.query('SELECT * FROM conf_perfis ORDER BY nome ASC');
+      : await this.#db.query('SELECT * FROM conf_perfis ORDER BY nome ASC', []);
     return linhasComoObjetos(res).map(mapearPerfil);
   }
 

@@ -97,6 +97,7 @@ export async function obterConfJob(db: GoDeployDB, id: string): Promise<ConfJob 
 export async function confJobsAtivos(db: GoDeployDB): Promise<ConfJob[]> {
   const res = await db.query(
     `SELECT * FROM conf_jobs WHERE status IN ('CRIADO', 'PROCESSANDO') ORDER BY criado_em ASC`,
+    [],
   );
   return linhasComoObjetos(res).map(mapearJob);
 }

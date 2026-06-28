@@ -361,6 +361,13 @@ verdade:** publicar consent screen + gerar `GOOGLE_OAUTH_REFRESH_TOKEN` da `rpa_
   `npm run build` (→ `dist/`) e subir `dist/**/*.js` + `package.json` + os assets web na raiz
   (`index.html`/`app.js`/`styles.css`), com `entrypoint = dist/api/worker.js` e `assets` SPA. Cron
   `/tasks/processar` passou a responder **202**; `GODEPLOY_CRON_KEY` setado.
+- **Redesign visual + deploy (2026-06-28):** SPA (`src/web/*`) redesenhada na **identidade GoGroup**
+  (`identidade_visual_gogroup.md`): azul/lime + Poppins, moldura azul → "console" creme com motivo de
+  janela (3 dots), selo "g" como batimento vivo do job; features de UX — **cards de marca** (no lugar do
+  `<select>`, com frentes em tags e estado "Em breve" p/ perfil sem base), **taxa de aprovação** +
+  **barra de distribuição** de status, **filtros do feed**, "abrir formulário", máscara MM/AAAA;
+  responsivo + foco visível + `prefers-reduced-motion`. **Só frontend** — nenhum contrato de API mudou.
+  PR #27 mergeada; publicado no app `687dbb00` como **versão 11** (mesmo fluxo de deploy da v7).
 
 ---
 

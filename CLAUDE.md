@@ -193,6 +193,19 @@ já no F0). Registre a escolha em §11 ao implementar.
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-28 (Redesign visual da SPA — identidade GoGroup)** — a tela da Conferência foi redesenhada
+  seguindo `identidade_visual_gogroup.md` (azul `#0059A9` + lime `#D7DB00`, Poppins, cantos pill, motivo
+  "janela de navegador" com 3 dots, selo "g"). Conceito: app como **"console"** (moldura azul → painel
+  creme); o **selo "g" vira o batimento vivo** do job (pulsa ao processar, lime ao concluir). Features de
+  UX (todas sobre dados que a API **já** expõe — **nenhum contrato mudou**): **cards de marca** no lugar do
+  `<select>` (frentes em tags; estado "Em breve" quando `baseConfigurada=false`); **taxa de aprovação**
+  (APROVADO/total) + **barra de distribuição** empilhada de status; **chips de filtro** do feed
+  (Tudo/Aprovados/Atenção/Problemas); ação **"Abrir formulário"**; **máscara MM/AAAA** no mês. Extensão
+  mínima de paleta: 2 cores semânticas (âmbar/vermelho) usadas **só** em pontos/segmentos/badges de status
+  (nunca como fundo de seção), pois a paleta da marca não expressa "erro/atenção". Qualidade: responsivo,
+  foco visível, `prefers-reduced-motion`. **Só `src/web/*`; sem dependência nova.** PR #27 mergeada;
+  deploy = **versão 11** do app `687dbb00` (mesmo fluxo de JS compilado da v7; ver memória
+  `deploy-godeploy-gonotafiscal`).
 - **2026-06-28 (Cabeçalhos duplicados no formulário)** — formulários com seções influ + assessoria
   repetem perguntas (ex.: dois "Qual seu CUPOM?"). Antes, `lerRegistros` fazia `obj[h]=valor` → a 2ª
   coluna **sobrescrevia** a 1ª (perda de dados de uma seção) e o mapa por nome ficava ambíguo. Agora a

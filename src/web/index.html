@@ -3,98 +3,218 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Conferência de NF por Cupom</title>
+    <title>Conferência de NF · gogroup</title>
+    <meta
+      name="description"
+      content="Bate as notas fiscais com a base, cupom por cupom — por marca, com retroativo e soma."
+    />
+    <!-- Favicon: selo "g" da marca (inline, sem requisição externa). -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='16'%20fill='%230059A9'/%3E%3Ctext%20x='32'%20y='46'%20font-family='Poppins,sans-serif'%20font-size='44'%20font-weight='900'%20fill='%23D7DB00'%20text-anchor='middle'%3Eg%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="casca">
-      <header class="topo">
-        <h1>Conferência de NF por Cupom</h1>
-        <p class="sub">
-          Escolha a marca/perfil, informe o mês e cole o link do formulário de respostas.
-          O sistema cruza as notas com a base por cupom, valida valor (com retroativo e
-          soma) e grava o resultado de volta no formulário.
-        </p>
+    <div class="moldura">
+      <!-- Marca: wordmark sobre o fundo azul da moldura + slogan da marca. -->
+      <header class="marca">
+        <span class="wordmark">gogroup</span>
+        <span class="slogan">Construindo o Futuro</span>
       </header>
 
-      <!-- Estado: carregando -->
-      <section id="estado-carregando" class="cartao">
-        <p>Carregando perfis…</p>
-      </section>
-
-      <!-- Estado: iniciar conferência -->
-      <section id="estado-iniciar" class="cartao oculto">
-        <h2>Nova conferência</h2>
-        <form id="form-conf">
-          <label for="perfil">Perfil</label>
-          <select id="perfil" name="perfil" required></select>
-          <p id="aviso-perfil" class="aviso oculto"></p>
-
-          <label for="mes">Mês/Ano</label>
-          <input
-            id="mes"
-            name="mes"
-            type="text"
-            inputmode="numeric"
-            placeholder="MM/AAAA (ex.: 05/2026)"
-            pattern="\d{2}/\d{4}"
-            required
-          />
-
-          <label for="form-url">Link do formulário (respostas)</label>
-          <input
-            id="form-url"
-            name="form-url"
-            type="url"
-            inputmode="url"
-            placeholder="https://docs.google.com/spreadsheets/d/…"
-            required
-          />
-
-          <button class="botao" type="submit" id="btn-iniciar">Iniciar conferência</button>
-          <p id="erro-form" class="erro oculto"></p>
-        </form>
-      </section>
-
-      <!-- Estado: confirmação de mapeamento -->
-      <section id="estado-mapeamento" class="cartao oculto">
-        <h2>Confirmar colunas</h2>
-        <p>
-          A IA não teve certeza de quais colunas usar no formulário. Confirme abaixo
-          (escolha a coluna correta para cada campo) e o processamento continua.
-        </p>
-        <form id="form-mapa">
-          <div id="campos-mapa"></div>
-          <button class="botao" type="submit" id="btn-mapa">Confirmar e continuar</button>
-          <p id="erro-mapa" class="erro oculto"></p>
-        </form>
-      </section>
-
-      <!-- Estado: progresso/dashboard -->
-      <section id="estado-progresso" class="cartao oculto">
-        <h2>Conferência</h2>
-        <p id="resumo-progresso" class="resumo"></p>
-        <dl class="metricas" id="metricas"></dl>
-        <p id="info-ajustes" class="aviso oculto"></p>
-        <p id="erro-job" class="erro oculto"></p>
-
-        <div class="atividades-bloco">
-          <div class="atividades-cabecalho">
-            <h3>Atividades</h3>
-            <span id="pulso-atividades" class="pulso oculto" aria-hidden="true"></span>
-          </div>
-          <ul
-            id="atividades"
-            class="atividades"
-            aria-live="polite"
-            aria-label="Atividades da conferência em tempo real"
-          ></ul>
-          <p id="atividades-vazio" class="aviso">Aguardando o início do processamento…</p>
+      <!-- Console: painel creme com "chrome" de janela (3 dots) — a assinatura da marca. -->
+      <main class="console">
+        <div class="console__chrome">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="console__rotulo">conferência de nf · por cupom</span>
         </div>
 
-        <button class="botao secundario" id="btn-nova">Nova conferência</button>
-      </section>
-    </main>
+        <div class="console__corpo" aria-live="polite">
+          <div class="intro">
+            <span class="eyebrow">Conferência por cupom</span>
+            <h1>Bate as notas com a base, cupom por cupom.</h1>
+            <p class="lead">
+              Escolha a marca, informe o mês e cole o link do formulário de respostas. O
+              sistema cruza cada NF com a base pelo cupom, confere o valor (com retroativo e
+              soma) e grava o resultado de volta no formulário.
+            </p>
+          </div>
+
+          <!-- ─────────────── Estado: carregando ─────────────── -->
+          <section id="estado-carregando" class="estado">
+            <div class="esqueleto-perfis" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+            <p class="dica">Carregando marcas…</p>
+          </section>
+
+          <!-- ─────────────── Estado: iniciar conferência ─────────────── -->
+          <section id="estado-iniciar" class="estado oculto">
+            <form id="form-conf" novalidate>
+              <fieldset class="campo-bloco">
+                <legend><span class="passo">1</span> Marca</legend>
+                <div
+                  id="perfis-lista"
+                  class="perfis-lista"
+                  role="radiogroup"
+                  aria-label="Marca / perfil"
+                ></div>
+                <p id="aviso-perfil" class="aviso oculto"></p>
+              </fieldset>
+
+              <div class="campo-grid">
+                <fieldset class="campo-bloco">
+                  <legend><span class="passo">2</span> Mês de referência</legend>
+                  <label class="rotulo-campo" for="mes">Formato MM/AAAA</label>
+                  <input
+                    id="mes"
+                    name="mes"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="05/2026"
+                    pattern="\d{2}/\d{4}"
+                    maxlength="7"
+                    required
+                  />
+                </fieldset>
+
+                <fieldset class="campo-bloco">
+                  <legend><span class="passo">3</span> Formulário</legend>
+                  <label class="rotulo-campo" for="form-url">Link das respostas (Google Sheets)</label>
+                  <input
+                    id="form-url"
+                    name="form-url"
+                    type="url"
+                    inputmode="url"
+                    placeholder="https://docs.google.com/spreadsheets/d/…"
+                    required
+                  />
+                </fieldset>
+              </div>
+
+              <div class="acoes">
+                <button class="btn btn-primario" type="submit" id="btn-iniciar">
+                  Iniciar conferência
+                  <span class="seta" aria-hidden="true">→</span>
+                </button>
+              </div>
+              <p id="erro-form" class="erro oculto"></p>
+            </form>
+          </section>
+
+          <!-- ─────────────── Estado: confirmação de mapeamento ─────────────── -->
+          <section id="estado-mapeamento" class="estado oculto">
+            <div class="aviso aviso-destaque">
+              <strong>Confirme as colunas.</strong> A IA não teve certeza de quais colunas
+              usar no formulário. Escolha a coluna certa para cada campo e o processamento
+              continua de onde parou.
+            </div>
+            <form id="form-mapa">
+              <div id="campos-mapa" class="campos-mapa"></div>
+              <div class="acoes">
+                <button class="btn btn-primario" type="submit" id="btn-mapa">
+                  Confirmar e continuar
+                </button>
+              </div>
+              <p id="erro-mapa" class="erro oculto"></p>
+            </form>
+          </section>
+
+          <!-- ─────────────── Estado: progresso / dashboard ─────────────── -->
+          <section id="estado-progresso" class="estado oculto">
+            <div class="dash-topo">
+              <div class="dash-titulo">
+                <!-- Selo "g": batimento vivo enquanto o job processa (assinatura da marca). -->
+                <span id="selo-vivo" class="selo" aria-hidden="true">g</span>
+                <div class="dash-titulo-txt">
+                  <span id="status-pill" class="badge badge-blue">Preparando…</span>
+                  <p id="resumo-progresso" class="resumo"></p>
+                </div>
+              </div>
+              <a
+                id="abrir-form"
+                class="btn btn-fantasma oculto"
+                href="#"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Abrir formulário ↗
+              </a>
+            </div>
+
+            <!-- Métrica-herói: taxa de aprovação + barra de distribuição dos status. -->
+            <div id="herois" class="herois oculto">
+              <div class="heroi-taxa">
+                <span class="heroi-num" id="taxa-num">—</span>
+                <span class="heroi-rotulo">taxa de aprovação</span>
+              </div>
+              <div class="heroi-barra">
+                <div
+                  id="barra-dist"
+                  class="barra-dist"
+                  role="img"
+                  aria-label="Distribuição dos status"
+                ></div>
+                <ul id="barra-legenda" class="barra-legenda"></ul>
+              </div>
+            </div>
+
+            <dl class="metricas" id="metricas"></dl>
+            <p id="info-ajustes" class="aviso oculto"></p>
+            <p id="erro-job" class="erro oculto"></p>
+
+            <div class="atividades-bloco">
+              <div class="atividades-cabecalho">
+                <h3>Atividades</h3>
+                <span id="pulso-atividades" class="pulso oculto" aria-hidden="true"></span>
+                <div
+                  id="filtros-feed"
+                  class="filtros"
+                  role="tablist"
+                  aria-label="Filtrar atividades"
+                >
+                  <button class="chip ativo" type="button" data-filtro="tudo" role="tab" aria-selected="true">
+                    Tudo
+                  </button>
+                  <button class="chip" type="button" data-filtro="ok" role="tab" aria-selected="false">
+                    Aprovados
+                  </button>
+                  <button class="chip" type="button" data-filtro="alerta" role="tab" aria-selected="false">
+                    Atenção
+                  </button>
+                  <button class="chip" type="button" data-filtro="ruim" role="tab" aria-selected="false">
+                    Problemas
+                  </button>
+                </div>
+              </div>
+              <ul
+                id="atividades"
+                class="atividades"
+                aria-live="polite"
+                aria-label="Atividades da conferência em tempo real"
+              ></ul>
+              <p id="atividades-vazio" class="dica">Aguardando o início do processamento…</p>
+            </div>
+
+            <div class="acoes">
+              <button class="btn btn-secundario" type="button" id="btn-nova">Nova conferência</button>
+            </div>
+          </section>
+        </div>
+
+        <footer class="console__rodape">
+          <span class="wordmark wordmark-mini">gogroup</span>
+        </footer>
+      </main>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

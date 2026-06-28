@@ -193,6 +193,14 @@ já no F0). Registre a escolha em §11 ao implementar.
 ## 11. Decisões (log)
 
 > Registre aqui decisões de arquitetura/stack com data e motivo. Ex.:
+- **2026-06-28 (Cabeçalhos duplicados no formulário)** — formulários com seções influ + assessoria
+  repetem perguntas (ex.: dois "Qual seu CUPOM?"). Antes, `lerRegistros` fazia `obj[h]=valor` → a 2ª
+  coluna **sobrescrevia** a 1ª (perda de dados de uma seção) e o mapa por nome ficava ambíguo. Agora a
+  leitura **desambigua** os cabeçalhos: `desambiguarCabecalhos` (puro, em `src/sheets/colunas.ts`) dá
+  sufixo ` (2)`, ` (3)`… à 2ª+ ocorrência (case-insensitive, tolerando um ` (2)` já existente), e o
+  `LeitorPlanilhaRest` usa isso em `lerCabecalho` **e** `lerRegistros` (mesma função → chaves casam).
+  Assim nenhuma coluna se perde e a IA mapeia cada frente para a coluna certa. Escrita/`garantirColunas`
+  seguem por nome único (`bot_*`), sem impacto. **Nenhuma dependência nova.**
 - **2026-06-27 (Status `SEM_BASE` — resposta sem correspondência na base)** — respostas do
   formulário com cupom+link mas **sem valor esperado na base do mês** deixavam de ser registradas:
   `montarLinhas` fazia `continue` (herdado do n8n) e, com 0 linhas, `processarFrente` nem criava as

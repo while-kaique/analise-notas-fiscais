@@ -3,6 +3,7 @@ import {
   construirMapaColunas,
   acharColuna,
   colunaParaA1,
+  desambiguarCabecalhos,
 } from '../src/sheets/colunas.js';
 
 describe('construirMapaColunas', () => {
@@ -19,6 +20,30 @@ describe('construirMapaColunas', () => {
   it('mantém a primeira ocorrência em caso de cabeçalho repetido', () => {
     const mapa = construirMapaColunas(['Status', 'Status']);
     expect(mapa['Status']).toBe(0);
+  });
+});
+
+describe('desambiguarCabecalhos', () => {
+  it('mantém nomes únicos e vazios intactos', () => {
+    expect(desambiguarCabecalhos(['Cupom', '', 'Link'])).toEqual(['Cupom', '', 'Link']);
+  });
+
+  it('sufixa a 2ª+ ocorrência (form influ + assessoria)', () => {
+    expect(
+      desambiguarCabecalhos(['Qual o nome?', 'Cupom', 'Qual o nome?', 'Qual o nome?']),
+    ).toEqual(['Qual o nome?', 'Cupom', 'Qual o nome? (2)', 'Qual o nome? (3)']);
+  });
+
+  it('é case-insensitive e faz trim ao detectar duplicata', () => {
+    expect(desambiguarCabecalhos(['  Nome ', 'nome'])).toEqual(['Nome', 'nome (2)']);
+  });
+
+  it('não colide com um " (2)" que já exista no formulário', () => {
+    expect(desambiguarCabecalhos(['Nome', 'Nome (2)', 'Nome'])).toEqual([
+      'Nome',
+      'Nome (2)',
+      'Nome (3)',
+    ]);
   });
 });
 

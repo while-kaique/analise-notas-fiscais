@@ -87,7 +87,9 @@ export async function processarFrente(
   const resultados: ResultadoConferencia[] = [];
   const escritas: EscritaCelula[] = [];
   for (const item of linhas) {
-    const resultado = await processarLinha(item.linha, ctx.marca, indice, deps);
+    const resultado = item.semBase
+      ? resultadoSemBase(item.linha, ctx.mesAlvo)
+      : await processarLinha(item.linha, ctx.marca, indice, deps);
     resultados.push(resultado);
     // Cupom + status (operacional); nunca valores/CNPJ (dados fiscais — §6).
     flog.debug('cupom processado', {
@@ -100,6 +102,22 @@ export async function processarFrente(
   await deps.leitor.escrever(ctx.formRef, escritas);
 
   return { frente: frente.tipo, resultados, precisaConfirmarMapeamento: false, origemMapa: resol.origem };
+}
+
+/**
+ * Resposta sem correspondência na base do mês: marca `SEM_BASE` (registra na planilha
+ * que o cupom não foi encontrado), **sem** baixar/OCR a NF (decisão 2026-06-27).
+ */
+function resultadoSemBase(linha: LinhaConferencia, mesAlvo: string): ResultadoConferencia {
+  return {
+    cupom: linha.cupom,
+    cupomOriginal: linha.cupomOriginal,
+    status: 'SEM_BASE',
+    valorEsperadoCentavos: 0,
+    retroativoCentavos: 0,
+    valorTotalCentavos: 0,
+    erro: `Cupom não encontrado na base para ${mesAlvo}.`,
+  };
 }
 
 /** Processa um único cupom: download → extração → validação inicial → (retroativo). */

@@ -14,6 +14,30 @@ function normalizar(cabecalho: string): string {
 }
 
 /**
+ * Torna únicos os cabeçalhos repetidos de uma linha de cabeçalho (formulário com seções
+ * influ + assessoria costuma repetir perguntas, ex.: dois "Qual seu CUPOM?"). A 1ª
+ * ocorrência mantém o nome; a 2ª+ ganha sufixo ` (2)`, ` (3)`… até ficar única
+ * (case-insensitive, tolerando um ` (2)` que já exista no formulário). Vazios continuam
+ * vazios (são ignorados em mapas/registros). É a base para ler/mapear cada coluna sem
+ * perder dados nem colidir — CLAUDE.md §4 (colunas por nome). Determinística e pura.
+ */
+export function desambiguarCabecalhos(headers: readonly string[]): string[] {
+  const usados = new Set<string>();
+  return headers.map((bruto) => {
+    const nome = (bruto ?? '').trim();
+    if (nome === '') return '';
+    let candidato = nome;
+    let n = 1;
+    while (usados.has(normalizar(candidato))) {
+      n += 1;
+      candidato = `${nome} (${n})`;
+    }
+    usados.add(normalizar(candidato));
+    return candidato;
+  });
+}
+
+/**
  * Constrói o mapa cabeçalho → índice 0-based a partir da linha de cabeçalho.
  * Identifica colunas por **nome**, nunca por posição (CLAUDE.md §4). Em caso de
  * cabeçalhos repetidos, a **primeira** ocorrência vence; células vazias são ignoradas.

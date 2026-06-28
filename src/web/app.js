@@ -25,6 +25,7 @@ const ROTULO_STATUS = {
   SEM_NF: "Sem NF anexada",
   NAO_LEGIVEL: "Não foi possível ler a NF",
   CNPJ_DIFERENTE: "CNPJ diferente",
+  SEM_BASE: "Cupom não encontrado na base",
 };
 // Ordem fixa de exibição (do melhor ao pior, depois os especiais).
 const ORDEM_STATUS = [
@@ -34,6 +35,7 @@ const ORDEM_STATUS = [
   "CNPJ_DIFERENTE",
   "SEM_NF",
   "NAO_LEGIVEL",
+  "SEM_BASE",
 ];
 
 async function pedirJson(url, opcoes) {
@@ -189,13 +191,17 @@ function pintarProgresso(p) {
 }
 
 function acompanhar(jobId) {
+  // Mesmo job (ex.: religado após confirmar mapeamento) → mantém o feed e o cursor.
+  const mesmoJob = jobAtual === jobId;
   jobAtual = jobId;
   mostrar("progresso");
   pararPoll();
+  if (!mesmoJob) reiniciarAtividades();
 
   const tick = async () => {
     try {
       const p = await pedirJson(`/api/conferencias/${jobId}`);
+      buscarAtividades(jobId); // feed roda independente do status (não bloqueia o poll)
       if (p.status === "AGUARDANDO_MAPEAMENTO" && p.pendenciaMapa) {
         pararPoll();
         mostrarMapeamento(jobId, p.pendenciaMapa);
@@ -213,6 +219,101 @@ function acompanhar(jobId) {
 
   tick();
   intervaloPoll = setInterval(tick, 2500);
+}
+
+// ──────────────────────────── Feed de atividades (tempo real) ────────────────────────────
+
+// Classe de cor por status do cupom (espelha o vocabulário do backend).
+const CLASSE_STATUS = {
+  APROVADO: "ok",
+  PARCIAL: "alerta",
+  NAO_APROVADO: "ruim",
+  CNPJ_DIFERENTE: "ruim",
+  SEM_NF: "neutro",
+  NAO_LEGIVEL: "ruim",
+  SEM_BASE: "ruim",
+};
+
+let ultimaAtividadeId = 0; // cursor incremental (maior id já trazido)
+let filaAtividades = []; // buffer revelado uma a uma (efeito "rolando")
+let timerReveal = null;
+
+function reiniciarAtividades() {
+  if (timerReveal) clearInterval(timerReveal);
+  timerReveal = null;
+  filaAtividades = [];
+  ultimaAtividadeId = 0;
+  const lista = $("atividades");
+  if (lista) lista.innerHTML = "";
+  $("atividades-vazio").classList.remove("oculto");
+  $("pulso-atividades").classList.add("oculto");
+}
+
+async function buscarAtividades(jobId) {
+  let dados;
+  try {
+    dados = await pedirJson(
+      `/api/conferencias/${jobId}/atividades?desde=${ultimaAtividadeId}`,
+    );
+  } catch (e) {
+    console.warn("atividades:", e.message);
+    return;
+  }
+  const novas = dados.atividades || [];
+  if (novas.length === 0) return;
+  ultimaAtividadeId = dados.ultimoId || ultimaAtividadeId;
+  filaAtividades.push(...novas);
+  iniciarReveal();
+}
+
+function iniciarReveal() {
+  if (timerReveal) return; // já está revelando
+  $("pulso-atividades").classList.remove("oculto");
+
+  const passo = () => {
+    // Se acumulou muito, revela em blocos para não deixar a fila "atrasada".
+    const lote = filaAtividades.length > 40 ? 4 : 1;
+    for (let i = 0; i < lote; i++) {
+      const ev = filaAtividades.shift();
+      if (!ev) break;
+      adicionarLinhaAtividade(ev);
+    }
+    if (filaAtividades.length === 0) {
+      clearInterval(timerReveal);
+      timerReveal = null;
+      $("pulso-atividades").classList.add("oculto");
+    }
+  };
+
+  passo();
+  timerReveal = setInterval(passo, 130);
+}
+
+function adicionarLinhaAtividade(ev) {
+  const lista = $("atividades");
+  if (!lista) return;
+  $("atividades-vazio").classList.add("oculto");
+
+  const li = document.createElement("li");
+  li.className = "atividade entrando";
+  if (ev.tipo === "cupom" || ev.tipo === "soma") {
+    li.classList.add(`s-${CLASSE_STATUS[ev.status] || "neutro"}`);
+  } else {
+    li.classList.add("marco");
+  }
+
+  const ponto = document.createElement("span");
+  ponto.className = "ponto";
+  const texto = document.createElement("span");
+  texto.className = "texto";
+  texto.textContent = ev.mensagem;
+  li.append(ponto, texto);
+
+  lista.prepend(li); // a mais nova no topo; as antigas descem
+  requestAnimationFrame(() => li.classList.remove("entrando"));
+
+  // Mantém só as últimas linhas na tela (DOM enxuto).
+  while (lista.children.length > 150) lista.removeChild(lista.lastChild);
 }
 
 // ──────────────────────────── Confirmação de mapeamento ────────────────────────────
@@ -290,6 +391,7 @@ async function iniciar() {
   $("form-mapa").addEventListener("submit", confirmarMapeamento);
   $("btn-nova").addEventListener("click", () => {
     pararPoll();
+    reiniciarAtividades();
     jobAtual = null;
     $("mes").value = "";
     mostrar("iniciar");

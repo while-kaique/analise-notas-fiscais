@@ -91,8 +91,9 @@ export function indexarBase(
 
 /**
  * Cruza as respostas do formulário com o esperado da base, produzindo as linhas a
- * processar (1ª resposta por cupom, com base e link presentes, fora das exclusões e
- * **ainda sem status** = pendente). A ordem segue a do formulário.
+ * processar (1ª resposta por cupom, com link presente, fora das exclusões e **ainda sem
+ * status** = pendente). Respostas sem correspondência na base do mês saem marcadas
+ * `semBase` (viram `SEM_BASE` sem baixar NF), em vez de ignoradas. Ordem = a do formulário.
  */
 export function montarLinhas(
   formRegistros: readonly RegistroPlanilha[],
@@ -127,11 +128,23 @@ export function montarLinhas(
     }
 
     if (vistos.has(cupom)) continue; // 1ª resposta por cupom
+    vistos.add(cupom);
 
     const esperado = indice.esperadoPorCupom.get(cupom);
-    if (!esperado) continue; // sem base no mês → ignora (n8n: ValorNF_Base exists)
+    if (!esperado) {
+      // Sem correspondência na base do mês: marca como SEM_BASE (decisão 2026-06-27),
+      // sem baixar a NF. Antes era ignorada em silêncio (n8n: ValorNF_Base exists).
+      const linha: LinhaConferencia = {
+        cupom,
+        cupomOriginal: cupomBruto,
+        linkNf: link,
+        valorEsperadoCentavos: 0,
+        mesAno: mesAlvo,
+      };
+      linhas.push({ linha, numeroLinha: r.numeroLinha, semBase: true });
+      continue;
+    }
 
-    vistos.add(cupom);
     const linha: LinhaConferencia = {
       cupom,
       cupomOriginal: cupomBruto,

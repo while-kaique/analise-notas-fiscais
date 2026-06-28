@@ -11,6 +11,9 @@
  * - `conf_mapas`   — cache do mapa de colunas (IA) por chave `perfilId:FRENTE` (spec §6).
  * - `conf_jobs`    — uma execução = (perfil, mês). Avança por cron (spec §7).
  * - `conf_linhas`  — uma linha conferida por (job, frente, cupom). Idempotência por status.
+ * - `conf_atividades` — feed cronológico de eventos do job (a tela "rolando"). Append-only,
+ *   `id` autoincremental serve de cursor para o poll do frontend; `chave` (UNIQUE) dá
+ *   idempotência (ticks concorrentes do cron não duplicam um marco/cupom no feed).
  */
 import type { GoDeployDB } from '../../api/env.js';
 
@@ -60,6 +63,18 @@ export const DDL_CONFERENCIA: readonly string[] = [
      processado_em TEXT,
      PRIMARY KEY (job_id, frente, cupom)
    )`,
+  `CREATE TABLE IF NOT EXISTS conf_atividades (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     job_id TEXT NOT NULL,
+     chave TEXT NOT NULL UNIQUE,
+     frente TEXT,
+     cupom TEXT,
+     tipo TEXT NOT NULL,
+     status TEXT,
+     mensagem TEXT NOT NULL,
+     criado_em TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_conf_atividades_job ON conf_atividades (job_id, id)`,
 ] as const;
 
 /** Cria as tabelas da conferência se ainda não existirem (idempotente). */

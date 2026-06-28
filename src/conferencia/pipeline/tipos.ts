@@ -13,6 +13,11 @@ export interface LinhaParaProcessar {
   linha: LinhaConferencia;
   /** Número da linha no formulário (1-based) onde a saída será escrita. */
   numeroLinha: number;
+  /**
+   * Resposta com cupom+link mas **sem correspondência na base** do mês: é marcada como
+   * `SEM_BASE` sem baixar/OCR a NF (decisão 2026-06-27). Ausente/`false` = processa normal.
+   */
+  semBase?: boolean;
 }
 
 /** Dependências injetadas no pipeline (todas atrás de interface). */

@@ -34,14 +34,17 @@ export function resultadoParaEscritas(
   colunas: ColunasSaida,
   numeroLinha: number,
 ): EscritaCelula[] {
+  // SEM_BASE (cupom não encontrado na base): só marca o status; sem valores a comparar.
+  const semValores = resultado.status === 'SEM_BASE';
+  const reais = (centavos: number) => (semValores ? '' : centavosParaReaisBr(centavos));
   const valores: Record<string, string> = {
     [colunas.status]: ROTULO_STATUS[resultado.status],
     [colunas.cnpjTomador]: resultado.cnpjTomador ?? '',
     [colunas.valorNf]:
       resultado.valorNfCentavos != null ? centavosParaReaisBr(resultado.valorNfCentavos) : '',
-    [colunas.retroativo]: centavosParaReaisBr(resultado.retroativoCentavos),
-    [colunas.valorEsperado]: centavosParaReaisBr(resultado.valorEsperadoCentavos),
-    [colunas.valorTotal]: centavosParaReaisBr(resultado.valorTotalCentavos),
+    [colunas.retroativo]: reais(resultado.retroativoCentavos),
+    [colunas.valorEsperado]: reais(resultado.valorEsperadoCentavos),
+    [colunas.valorTotal]: reais(resultado.valorTotalCentavos),
     [colunas.dataNf]: isoParaBr(resultado.dataNfIso),
     [colunas.numeroNf]: resultado.numeroNf ?? '',
   };

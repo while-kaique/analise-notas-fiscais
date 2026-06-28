@@ -134,7 +134,8 @@ export type StatusConferencia =
   | 'NAO_APROVADO'
   | 'SEM_NF'
   | 'NAO_LEGIVEL'
-  | 'CNPJ_DIFERENTE';
+  | 'CNPJ_DIFERENTE'
+  | 'SEM_BASE';
 
 /** Rótulos em PT-BR escritos na planilha (a superfície que o usuário lê). */
 export const ROTULO_STATUS: Readonly<Record<StatusConferencia, string>> = {
@@ -144,6 +145,7 @@ export const ROTULO_STATUS: Readonly<Record<StatusConferencia, string>> = {
   SEM_NF: 'Sem NF anexada',
   NAO_LEGIVEL: 'Não foi possível ler a NF',
   CNPJ_DIFERENTE: 'CNPJ diferente',
+  SEM_BASE: 'Cupom não encontrado na base',
 } as const;
 
 /**

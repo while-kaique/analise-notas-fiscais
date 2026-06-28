@@ -57,6 +57,37 @@ describe('LeitorPlanilhaRest', () => {
     expect(regs[0]).toEqual({ numeroLinha: 2, valores: { Cupom: 'A', Link: 'x' } });
   });
 
+  it('desambigua cabeçalhos duplicados ao ler (não perde a 2ª seção)', async () => {
+    const fn = (async (url: string | URL) => {
+      const u = decodeURIComponent(String(url));
+      const json = (obj: unknown) =>
+        new Response(JSON.stringify(obj), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (u.includes('?fields=sheets.properties')) {
+        return json({ sheets: [{ properties: { sheetId: 0, title: 'Resp' } }] });
+      }
+      // Cabeçalho repete "Qual seu CUPOM?" e "Link NF" (seções influ + assessoria).
+      const cab = ['Qual seu CUPOM?', 'Link NF', 'Qual seu CUPOM?', 'Link NF'];
+      if (u.includes('!1:1')) return json({ values: [cab] });
+      return json({ values: [cab, ['INFLU1', 'urlA', 'ASSESS1', 'urlB']] });
+    }) as unknown as typeof fetch;
+
+    const leitor = new LeitorPlanilhaRest(() => Promise.resolve('TOK'), { fetchImpl: fn });
+    expect(await leitor.lerCabecalho(ref)).toEqual([
+      'Qual seu CUPOM?',
+      'Link NF',
+      'Qual seu CUPOM? (2)',
+      'Link NF (2)',
+    ]);
+    const regs = await leitor.lerRegistros(ref);
+    // As duas seções ficam acessíveis (a 2ª não sobrescreve a 1ª).
+    expect(regs[0]?.valores).toEqual({
+      'Qual seu CUPOM?': 'INFLU1',
+      'Link NF': 'urlA',
+      'Qual seu CUPOM? (2)': 'ASSESS1',
+      'Link NF (2)': 'urlB',
+    });
+  });
+
   it('garantirColunas cria só as que faltam (append no fim)', async () => {
     const { fn, chamadas } = fakeSheets();
     const leitor = new LeitorPlanilhaRest(() => Promise.resolve('TOK'), { fetchImpl: fn });

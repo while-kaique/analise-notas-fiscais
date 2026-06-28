@@ -9,7 +9,12 @@ import {
   validarComRetroativo,
   reconciliarSoma,
 } from '../src/conferencia/validacao/index.js';
-import { MARCA_GOCASE, MARGEM_PARCIAL_CENTAVOS, STATUS_BLOQUEANTES_PADRAO } from '../src/conferencia/index.js';
+import {
+  MARCA_GOCASE,
+  MARGEM_PARCIAL_CENTAVOS,
+  STATUS_BLOQUEANTES_PADRAO,
+  ROTULO_STATUS,
+} from '../src/conferencia/index.js';
 import type { CamposNfBrutos, EntradaHistorico, LinhaConferencia } from '../src/conferencia/tipos.js';
 
 const GOCASE = MARCA_GOCASE.cnpjTomador; // '22165464000190'
@@ -71,7 +76,8 @@ describe('statusEhMelhor', () => {
   });
 
   it('ranking cobre todos os status', () => {
-    expect(Object.keys(ORDEM_APROVACAO)).toHaveLength(6);
+    // Deriva do vocabulário de status para não quebrar ao adicionar um novo.
+    expect(Object.keys(ORDEM_APROVACAO).sort()).toEqual(Object.keys(ROTULO_STATUS).sort());
   });
 });
 

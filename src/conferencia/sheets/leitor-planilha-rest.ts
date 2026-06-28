@@ -9,7 +9,12 @@
  */
 import type { PlanilhaRef } from '../tipos.js';
 import type { EscritaCelula, LeitorPlanilha, RegistroPlanilha } from '../contratos.js';
-import { acharColuna, colunaParaA1, construirMapaColunas } from '../../sheets/colunas.js';
+import {
+  acharColuna,
+  colunaParaA1,
+  construirMapaColunas,
+  desambiguarCabecalhos,
+} from '../../sheets/colunas.js';
 
 const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 type FetchLike = typeof fetch;
@@ -93,13 +98,17 @@ export class LeitorPlanilhaRest implements LeitorPlanilha {
   async lerCabecalho(ref: PlanilhaRef): Promise<string[]> {
     const titulo = await this.#titulo(ref);
     const valores = await this.#lerValores(ref.spreadsheetId, `${abaA1(titulo)}!1:1`);
-    return (valores[0] ?? []).map((c) => c.trim());
+    // Desambigua cabeçalhos repetidos (form com seções influ+assessoria) — a IA mapeia
+    // cada coluna sem ambiguidade; nada se perde.
+    return desambiguarCabecalhos(valores[0] ?? []);
   }
 
   async lerRegistros(ref: PlanilhaRef): Promise<RegistroPlanilha[]> {
     const titulo = await this.#titulo(ref);
     const valores = await this.#lerValores(ref.spreadsheetId, abaA1(titulo));
-    const cabecalho = (valores[0] ?? []).map((c) => c.trim());
+    // Mesma desambiguação do cabeçalho → cada coluna duplicada vira uma chave única
+    // (sem a última sobrescrever a primeira em `obj[h]`).
+    const cabecalho = desambiguarCabecalhos(valores[0] ?? []);
 
     const registros: RegistroPlanilha[] = [];
     for (let i = 1; i < valores.length; i++) {

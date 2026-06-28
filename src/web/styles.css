@@ -175,3 +175,104 @@ select:focus {
 @media (max-width: 480px) {
   .metricas { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ──────────────────────────── Feed de atividades ──────────────────────────── */
+
+.atividades-bloco {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--linha);
+}
+
+.atividades-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.atividades-cabecalho h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* "Pulso" que indica que há atividades chegando/sendo reveladas. */
+.pulso {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--verde);
+  box-shadow: 0 0 0 0 rgba(31, 111, 74, 0.5);
+  animation: pulsar 1.4s ease-out infinite;
+}
+
+@keyframes pulsar {
+  0% { box-shadow: 0 0 0 0 rgba(31, 111, 74, 0.5); }
+  70% { box-shadow: 0 0 0 7px rgba(31, 111, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(31, 111, 74, 0); }
+}
+
+.atividades {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  background: #fbfaf6;
+}
+
+.atividades:empty { display: none; }
+
+.atividade {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--linha);
+  font-size: 0.88rem;
+  /* estado de entrada (removido no próximo frame → transição) */
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.atividade:last-child { border-bottom: none; }
+
+.atividade.entrando {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.atividade .ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--cinza);
+}
+
+.atividade .texto {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Marcos do job (início, frente concluída, conclusão) — em destaque sutil. */
+.atividade.marco {
+  background: var(--verde-claro);
+  font-weight: 600;
+}
+.atividade.marco .ponto { background: var(--verde); }
+
+/* Cores por status do cupom. */
+.atividade.s-ok .ponto { background: var(--verde); }
+.atividade.s-alerta .ponto { background: #c08a1e; }
+.atividade.s-ruim .ponto { background: var(--erro); }
+.atividade.s-neutro .ponto { background: var(--cinza); }
+
+@media (prefers-reduced-motion: reduce) {
+  .atividade { transition: none; }
+  .atividade.entrando { opacity: 1; transform: none; }
+  .pulso { animation: none; }
+}

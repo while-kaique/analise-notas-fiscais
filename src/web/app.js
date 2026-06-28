@@ -1,6 +1,7 @@
 // SPA da Conferência de NF por Cupom (v2) — vanilla JS, servida como asset estático.
-// Fluxo (spec §9 / decisão 9): escolher perfil → mês + link do form → dashboard.
+// Fluxo (spec §9 / decisão 9): escolher marca/perfil → mês + link do form → dashboard.
 // Sem login Google na UI (decisão 11): o acesso já é gated pelo GoDeploy.
+// Identidade visual GoGroup (identidade_visual_gogroup.md): azul + lime, Poppins, selo "g".
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,6 +38,16 @@ const ORDEM_STATUS = [
   "NAO_LEGIVEL",
   "SEM_BASE",
 ];
+// Classe de cor por status (ok/alerta/ruim/neutro) — espelha o vocabulário visual do CSS.
+const CLASSE_STATUS = {
+  APROVADO: "ok",
+  PARCIAL: "alerta",
+  NAO_APROVADO: "ruim",
+  CNPJ_DIFERENTE: "ruim",
+  SEM_NF: "neutro",
+  NAO_LEGIVEL: "ruim",
+  SEM_BASE: "ruim",
+};
 
 async function pedirJson(url, opcoes) {
   const resp = await fetch(url, { credentials: "same-origin", ...opcoes });
@@ -55,49 +66,112 @@ async function pedirJson(url, opcoes) {
 
 let intervaloPoll = null;
 let jobAtual = null;
+let urlFormAtual = ""; // link do form da conferência em curso (p/ "Abrir formulário")
 
-// ──────────────────────────── Carregar perfis ────────────────────────────
+// ──────────────────────────── Carregar perfis (cards de marca) ────────────────────────────
 
 let perfisCarregados = [];
+let perfilSelecionadoId = null;
 
 async function carregarPerfis() {
   const dados = await pedirJson("/api/perfis");
   perfisCarregados = dados.perfis || [];
-
-  const sel = $("perfil");
-  sel.innerHTML = "";
-  for (const p of perfisCarregados) {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    const frentes = (p.frentes || []).join(" · ");
-    opt.textContent = `${p.marca.nome} — ${p.nome}${frentes ? ` (${frentes})` : ""}`;
-    opt.disabled = !p.baseConfigurada;
-    sel.appendChild(opt);
-  }
-
-  sel.addEventListener("change", aoTrocarPerfil);
-  aoTrocarPerfil();
+  renderizarPerfis();
   mostrar("iniciar");
 }
 
-function perfilSelecionado() {
-  return perfisCarregados.find((p) => p.id === $("perfil").value);
+function renderizarPerfis() {
+  const lista = $("perfis-lista");
+  lista.innerHTML = "";
+  perfilSelecionadoId = null;
+
+  for (const p of perfisCarregados) {
+    const disponivel = !!p.baseConfigurada;
+    const card = document.createElement("label");
+    card.className = "perfil-card" + (disponivel ? "" : " desabilitado");
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "perfil";
+    radio.value = p.id;
+    radio.disabled = !disponivel;
+    radio.addEventListener("change", () => selecionarPerfil(p.id));
+    card.appendChild(radio);
+
+    const marca = document.createElement("span");
+    marca.className = "marca-nome";
+    marca.textContent = p.marca.nome;
+    card.appendChild(marca);
+
+    const nome = document.createElement("p");
+    nome.className = "perfil-nome";
+    nome.textContent = p.nome;
+    card.appendChild(nome);
+
+    const frentes = document.createElement("div");
+    frentes.className = "perfil-frentes";
+    for (const f of p.frentes || []) {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = f;
+      frentes.appendChild(tag);
+    }
+    card.appendChild(frentes);
+
+    if (!disponivel) {
+      const selo = document.createElement("span");
+      selo.className = "selo-esqueleto";
+      selo.textContent = "Em breve";
+      card.appendChild(selo);
+    }
+    lista.appendChild(card);
+  }
+
+  // Pré-seleciona o primeiro perfil disponível.
+  const primeiro = perfisCarregados.find((p) => p.baseConfigurada);
+  if (primeiro) {
+    const radio = lista.querySelector(`input[value="${cssEscape(primeiro.id)}"]`);
+    if (radio) {
+      radio.checked = true;
+      selecionarPerfil(primeiro.id);
+    }
+  } else {
+    avisarSemPerfil();
+  }
 }
 
-function aoTrocarPerfil() {
-  const p = perfilSelecionado();
-  const aviso = $("aviso-perfil");
+function cssEscape(v) {
+  return typeof CSS !== "undefined" && CSS.escape ? CSS.escape(v) : v;
+}
+
+function perfilPorId(id) {
+  return perfisCarregados.find((p) => p.id === id);
+}
+
+function selecionarPerfil(id) {
+  perfilSelecionadoId = id;
+  const p = perfilPorId(id);
+
+  // Realce visual do card escolhido.
+  for (const card of $("perfis-lista").querySelectorAll(".perfil-card")) {
+    const radio = card.querySelector("input");
+    card.classList.toggle("selecionado", !!radio && radio.checked);
+  }
+
   // Pré-preenche o link do form com o do mês anterior (decisão 4: salvo no perfil).
   if (p && p.formSheetUrl) $("form-url").value = p.formSheetUrl;
-  if (p && !p.baseConfigurada) {
-    aviso.textContent =
-      "Este perfil ainda é um esqueleto (base não configurada). Escolha outro perfil.";
-    aviso.classList.remove("oculto");
-    $("btn-iniciar").disabled = true;
-  } else {
-    aviso.classList.add("oculto");
-    $("btn-iniciar").disabled = false;
-  }
+
+  const aviso = $("aviso-perfil");
+  aviso.classList.add("oculto");
+  $("btn-iniciar").disabled = false;
+}
+
+function avisarSemPerfil() {
+  const aviso = $("aviso-perfil");
+  aviso.textContent =
+    "Nenhuma marca está configurada ainda. As marcas em preparo aparecem como “Em breve”.";
+  aviso.classList.remove("oculto");
+  $("btn-iniciar").disabled = true;
 }
 
 // ──────────────────────────── Iniciar conferência ────────────────────────────
@@ -107,14 +181,21 @@ async function iniciarConferencia(evento) {
   const btn = $("btn-iniciar");
   const erroEl = $("erro-form");
   erroEl.classList.add("oculto");
-  btn.disabled = true;
 
+  if (!perfilSelecionadoId) {
+    erroEl.textContent = "Escolha uma marca para começar.";
+    erroEl.classList.remove("oculto");
+    return;
+  }
+
+  btn.disabled = true;
   try {
     const corpo = {
-      perfilId: $("perfil").value,
+      perfilId: perfilSelecionadoId,
       mesAlvo: $("mes").value.trim(),
       formUrl: $("form-url").value.trim(),
     };
+    urlFormAtual = corpo.formUrl;
     const res = await pedirJson("/api/conferencias", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -136,42 +217,51 @@ function pararPoll() {
   intervaloPoll = null;
 }
 
+const ROTULO_JOB = {
+  CRIADO: "Preparando…",
+  PROCESSANDO: "Processando…",
+  AGUARDANDO_MAPEAMENTO: "Aguardando colunas",
+  CONCLUIDO: "Concluído",
+  FALHOU: "Falhou",
+};
+
 function pintarProgresso(p) {
-  const rotuloJob = {
-    CRIADO: "Preparando…",
-    PROCESSANDO: "Processando…",
-    AGUARDANDO_MAPEAMENTO: "Aguardando confirmação de colunas",
-    CONCLUIDO: "Concluído",
-    FALHOU: "Falhou",
-  };
+  // Selo "g" como batimento vivo do job.
+  const selo = $("selo-vivo");
+  selo.classList.remove("processando", "concluido", "falhou");
+  if (p.status === "CONCLUIDO") selo.classList.add("concluido");
+  else if (p.status === "FALHOU") selo.classList.add("falhou");
+  else selo.classList.add("processando");
+
+  // Pill de status + resumo em texto.
+  const pill = $("status-pill");
+  pill.textContent = ROTULO_JOB[p.status] || p.status;
+  pill.className = "badge " + (p.status === "CONCLUIDO" ? "badge-lime" : "badge-blue");
+
+  const marca = perfilPorId(p.perfilId);
+  const nomeMarca = marca ? marca.marca.nome : "";
   const resumo = $("resumo-progresso");
   if (p.status === "CONCLUIDO") {
-    resumo.textContent = `Concluído — ${p.total} cupom(ns) conferido(s).`;
+    resumo.textContent = `${nomeMarca ? nomeMarca + " · " : ""}${p.mesAlvo} — ${p.total} cupom(ns) conferido(s).`;
   } else if (p.status === "FALHOU") {
-    resumo.textContent = "A conferência falhou.";
+    resumo.textContent = "A conferência falhou. Veja o detalhe abaixo.";
   } else if (p.total === 0) {
     resumo.textContent = "Lendo a planilha e cruzando os cupons…";
   } else {
-    resumo.textContent = `${rotuloJob[p.status] || p.status} — ${p.total} cupom(ns) até agora.`;
+    resumo.textContent = `${nomeMarca ? nomeMarca + " · " : ""}${p.mesAlvo} — ${p.total} cupom(ns) até agora.`;
   }
 
-  // Métricas por status (só as frentes de extração; SOMA vira "ajustes").
-  const metricas = $("metricas");
-  metricas.innerHTML = "";
-  const adicionar = (rotulo, valor) => {
-    const div = document.createElement("div");
-    const dt = document.createElement("dt");
-    dt.textContent = rotulo;
-    const dd = document.createElement("dd");
-    dd.textContent = valor;
-    div.append(dt, dd);
-    metricas.appendChild(div);
-  };
-  adicionar("Total", p.total ?? 0);
-  for (const chave of ORDEM_STATUS) {
-    const n = (p.porStatus || {})[chave];
-    if (n) adicionar(ROTULO_STATUS[chave], n);
+  // Link "Abrir formulário".
+  const abrir = $("abrir-form");
+  if (urlFormAtual) {
+    abrir.href = urlFormAtual;
+    abrir.classList.remove("oculto");
+  } else {
+    abrir.classList.add("oculto");
   }
+
+  pintarHeroi(p);
+  pintarMetricas(p);
 
   const ajustes = $("info-ajustes");
   if (p.ajustesSoma > 0) {
@@ -187,6 +277,65 @@ function pintarProgresso(p) {
     erroEl.classList.remove("oculto");
   } else {
     erroEl.classList.add("oculto");
+  }
+}
+
+// Taxa de aprovação (APROVADO / total) + barra de distribuição empilhada.
+function pintarHeroi(p) {
+  const herois = $("herois");
+  const total = p.total ?? 0;
+  if (total === 0) {
+    herois.classList.add("oculto");
+    return;
+  }
+  herois.classList.remove("oculto");
+
+  const aprovados = (p.porStatus || {}).APROVADO || 0;
+  const taxa = Math.round((aprovados / total) * 100);
+  $("taxa-num").textContent = `${taxa}%`;
+
+  // Segmentos da barra + legenda, na ordem fixa de status.
+  const barra = $("barra-dist");
+  const legenda = $("barra-legenda");
+  barra.innerHTML = "";
+  legenda.innerHTML = "";
+  for (const chave of ORDEM_STATUS) {
+    const n = (p.porStatus || {})[chave];
+    if (!n) continue;
+    const classe = CLASSE_STATUS[chave] || "neutro";
+
+    const seg = document.createElement("span");
+    seg.className = `seg ${classe}`;
+    seg.style.flexGrow = String(n);
+    seg.title = `${ROTULO_STATUS[chave]}: ${n}`;
+    barra.appendChild(seg);
+
+    const li = document.createElement("li");
+    const dot = document.createElement("span");
+    dot.className = `dot ${classe}`;
+    li.appendChild(dot);
+    li.appendChild(document.createTextNode(`${ROTULO_STATUS[chave]} · ${n}`));
+    legenda.appendChild(li);
+  }
+}
+
+function pintarMetricas(p) {
+  const metricas = $("metricas");
+  metricas.innerHTML = "";
+  const adicionar = (rotulo, valor, classe) => {
+    const div = document.createElement("div");
+    div.className = "metrica" + (classe ? ` ${classe}` : "");
+    const dt = document.createElement("dt");
+    dt.textContent = rotulo;
+    const dd = document.createElement("dd");
+    dd.textContent = valor;
+    div.append(dt, dd);
+    metricas.appendChild(div);
+  };
+  adicionar("Total", p.total ?? 0);
+  for (const chave of ORDEM_STATUS) {
+    const n = (p.porStatus || {})[chave];
+    if (n) adicionar(ROTULO_STATUS[chave], n, CLASSE_STATUS[chave]);
   }
 }
 
@@ -223,20 +372,10 @@ function acompanhar(jobId) {
 
 // ──────────────────────────── Feed de atividades (tempo real) ────────────────────────────
 
-// Classe de cor por status do cupom (espelha o vocabulário do backend).
-const CLASSE_STATUS = {
-  APROVADO: "ok",
-  PARCIAL: "alerta",
-  NAO_APROVADO: "ruim",
-  CNPJ_DIFERENTE: "ruim",
-  SEM_NF: "neutro",
-  NAO_LEGIVEL: "ruim",
-  SEM_BASE: "ruim",
-};
-
 let ultimaAtividadeId = 0; // cursor incremental (maior id já trazido)
 let filaAtividades = []; // buffer revelado uma a uma (efeito "rolando")
 let timerReveal = null;
+let filtroFeed = "tudo"; // tudo | ok | alerta | ruim
 
 function reiniciarAtividades() {
   if (timerReveal) clearInterval(timerReveal);
@@ -289,18 +428,29 @@ function iniciarReveal() {
   timerReveal = setInterval(passo, 130);
 }
 
+function classeDaAtividade(ev) {
+  if (ev.tipo === "cupom" || ev.tipo === "soma") {
+    return CLASSE_STATUS[ev.status] || "neutro";
+  }
+  return null; // marco do job
+}
+
 function adicionarLinhaAtividade(ev) {
   const lista = $("atividades");
   if (!lista) return;
   $("atividades-vazio").classList.add("oculto");
 
+  const classe = classeDaAtividade(ev);
   const li = document.createElement("li");
   li.className = "atividade entrando";
-  if (ev.tipo === "cupom" || ev.tipo === "soma") {
-    li.classList.add(`s-${CLASSE_STATUS[ev.status] || "neutro"}`);
+  if (classe) {
+    li.classList.add(`s-${classe}`);
+    li.dataset.classe = classe;
   } else {
     li.classList.add("marco");
+    li.dataset.classe = "marco";
   }
+  if (!atividadeVisivelNoFiltro(li)) li.classList.add("escondida");
 
   const ponto = document.createElement("span");
   ponto.className = "ponto";
@@ -314,6 +464,23 @@ function adicionarLinhaAtividade(ev) {
 
   // Mantém só as últimas linhas na tela (DOM enxuto).
   while (lista.children.length > 150) lista.removeChild(lista.lastChild);
+}
+
+function atividadeVisivelNoFiltro(li) {
+  if (filtroFeed === "tudo") return true;
+  return li.dataset.classe === filtroFeed;
+}
+
+function aplicarFiltroFeed(filtro) {
+  filtroFeed = filtro;
+  for (const chip of $("filtros-feed").querySelectorAll(".chip")) {
+    const ativo = chip.dataset.filtro === filtro;
+    chip.classList.toggle("ativo", ativo);
+    chip.setAttribute("aria-selected", ativo ? "true" : "false");
+  }
+  for (const li of $("atividades").children) {
+    li.classList.toggle("escondida", !atividadeVisivelNoFiltro(li));
+  }
 }
 
 // ──────────────────────────── Confirmação de mapeamento ────────────────────────────
@@ -384,15 +551,31 @@ async function confirmarMapeamento(evento) {
   }
 }
 
+// ──────────────────────────── Máscara do campo de mês ────────────────────────────
+
+function mascararMes(e) {
+  const input = e.target;
+  let v = input.value.replace(/\D/g, "").slice(0, 6);
+  if (v.length > 2) v = `${v.slice(0, 2)}/${v.slice(2)}`;
+  input.value = v;
+}
+
 // ──────────────────────────── Bootstrap ────────────────────────────
 
 async function iniciar() {
   $("form-conf").addEventListener("submit", iniciarConferencia);
   $("form-mapa").addEventListener("submit", confirmarMapeamento);
+  $("mes").addEventListener("input", mascararMes);
+  $("filtros-feed").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (chip) aplicarFiltroFeed(chip.dataset.filtro);
+  });
   $("btn-nova").addEventListener("click", () => {
     pararPoll();
     reiniciarAtividades();
     jobAtual = null;
+    urlFormAtual = "";
+    filtroFeed = "tudo";
     $("mes").value = "";
     mostrar("iniciar");
   });
@@ -400,7 +583,8 @@ async function iniciar() {
   try {
     await carregarPerfis();
   } catch (e) {
-    $("estado-carregando").innerHTML = `<p class="erro">Falha ao carregar perfis: ${e.message}</p>`;
+    $("estado-carregando").innerHTML =
+      `<p class="erro">Não foi possível carregar as marcas: ${e.message}. Recarregue a página.</p>`;
   }
 }
 
